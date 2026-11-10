@@ -54,7 +54,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -120,6 +120,7 @@ function applyLook() {
     const old = scene.background;
     if (old instanceof THREE.Texture) old.dispose();
     scene.background = tex;
+    fitBackground();
   } else {
     const old = scene.background;
     if (old instanceof THREE.Texture) old.dispose();
@@ -131,6 +132,29 @@ function applyLook() {
   document.body.classList.toggle('dark', palette().dark);
   document.body.classList.toggle('media', b !== undefined);
   document.body.style.background = palette().paper.hex;
+}
+
+/**
+ * three.js 會把背景圖硬撐滿整個畫面（會變形）；改成 cover：保持比例、裁掉多的部分。
+ * 影片的尺寸要等第一格載入後才知道，所以每次換背景、縮放視窗都重算。
+ */
+function fitBackground() {
+  const tex = scene.background;
+  if (!(tex instanceof THREE.Texture)) return;
+  const el = tex.image as HTMLImageElement | HTMLVideoElement | undefined;
+  const iw = el instanceof HTMLVideoElement ? el.videoWidth : (el?.naturalWidth ?? 0);
+  const ih = el instanceof HTMLVideoElement ? el.videoHeight : (el?.naturalHeight ?? 0);
+  if (!iw || !ih) return;
+  const screen = window.innerWidth / window.innerHeight;
+  const image = iw / ih;
+  tex.matrixAutoUpdate = true;
+  if (image > screen) {
+    tex.repeat.set(screen / image, 1);
+    tex.offset.set((1 - screen / image) / 2, 0);
+  } else {
+    tex.repeat.set(1, image / screen);
+    tex.offset.set(0, (1 - image / screen) / 2);
+  }
 }
 
 // ---------- 植物 ----------
@@ -420,6 +444,7 @@ window.addEventListener('keydown', (ev) => {
 });
 
 window.addEventListener('resize', () => {
+  fitBackground();
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
