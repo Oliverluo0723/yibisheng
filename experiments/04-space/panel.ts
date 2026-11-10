@@ -159,7 +159,7 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
   gear.onclick = () => toggleSettings();
   top.append(gear);
   const handBtn = el('button', 'ui-dock-btn', '手');
-  handBtn.title = '用手畫：捏起拇指和食指就是下筆（要開攝影機）';
+  handBtn.title = '用手畫：捏起拇指和食指＝下筆；張開手掌左右上下揮＝轉向（要開攝影機）';
   handBtn.onclick = () => actions.toggleHand();
   top.append(handBtn);
   for (const [label, key, fn] of [

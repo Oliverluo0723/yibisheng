@@ -57,3 +57,42 @@ export function cursorFrom(lm: Landmark[], w: number, h: number, p: PinchParams)
   const clamp = (v: number) => Math.max(0, Math.min(1, v));
   return { x: clamp((mx - m) / p.reach) * w, y: clamp((my - m) / p.reach) * h };
 }
+
+/** 四根手指：[指尖, 第二指節(PIP)] */
+const FINGERS: [number, number][] = [
+  [8, 6],
+  [12, 10],
+  [16, 14],
+  [20, 18],
+];
+const PALM = [0, 5, 9, 13, 17];
+
+/**
+ * 張開手掌：四根手指都伸直（指尖比第二指節離手腕更遠），而且拇指張開、沒有在捏。
+ * 和「捏」差最多，最不容易誤判。
+ */
+export function isOpenPalm(lm: Landmark[], p: PinchParams = defaultPinchParams): boolean {
+  const w = lm[WRIST];
+  if (!w) return false;
+  for (const [tip, pip] of FINGERS) {
+    const t = lm[tip];
+    const j = lm[pip];
+    if (!t || !j) return false;
+    if (dist(w, t) < dist(w, j) * 1.15) return false;
+  }
+  const ratio = pinchRatio(lm);
+  return ratio !== null && ratio > p.up * 1.3;
+}
+
+/** 手掌中心（手腕和四個指根的平均），鏡像後的 0..1 比例座標 */
+export function palmCenter(lm: Landmark[]): { x: number; y: number } | null {
+  let x = 0;
+  let y = 0;
+  for (const i of PALM) {
+    const q = lm[i];
+    if (!q) return null;
+    x += q.x;
+    y += q.y;
+  }
+  return { x: 1 - x / PALM.length, y: y / PALM.length };
+}

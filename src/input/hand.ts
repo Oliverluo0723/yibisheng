@@ -1,5 +1,13 @@
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
-import { cursorFrom, defaultPinchParams, nextPinched, type PinchParams, pinchRatio } from './pinch';
+import {
+  cursorFrom,
+  defaultPinchParams,
+  isOpenPalm,
+  nextPinched,
+  type PinchParams,
+  palmCenter,
+  pinchRatio,
+} from './pinch';
 
 /**
  * 網路攝影機手勢追蹤（MediaPipe Hand Landmarker）。影像只在瀏覽器裡處理，不會上傳。
@@ -19,14 +27,32 @@ export type HandState = {
   y: number;
   /** 捏合比例（除錯 / 調門檻用） */
   ratio: number | null;
+  /** 張開手掌（= 轉向） */
+  open: boolean;
+  /** 手掌中心，鏡像後 0..1 */
+  palmX: number;
+  palmY: number;
 };
+
+/** 連續幾格判定一致才切換「張開手掌」，避免一閃一閃 */
+const OPEN_FRAMES = 3;
 
 export class HandTracker {
   readonly video: HTMLVideoElement;
   private landmarker?: HandLandmarker;
   private stream?: MediaStream;
   private lastVideoTime = -1;
-  readonly state: HandState = { seen: false, pinched: false, x: 0, y: 0, ratio: null };
+  readonly state: HandState = {
+    seen: false,
+    pinched: false,
+    x: 0,
+    y: 0,
+    ratio: null,
+    open: false,
+    palmX: 0.5,
+    palmY: 0.5,
+  };
+  private openVotes = 0;
   params: PinchParams = { ...defaultPinchParams };
 
   constructor() {
@@ -74,6 +100,7 @@ export class HandTracker {
     this.video.srcObject = null;
     this.state.seen = false;
     this.state.pinched = false;
+    this.state.open = false;
   }
 
   /** 每幀呼叫；同一格影像不重算 */
@@ -87,7 +114,9 @@ export class HandTracker {
     if (!lm) {
       s.seen = false;
       s.pinched = false;
+      s.open = false;
       s.ratio = null;
+      this.openVotes = 0;
       return s;
     }
     const ratio = pinchRatio(lm);
@@ -95,6 +124,18 @@ export class HandTracker {
     s.seen = true;
     s.ratio = ratio;
     s.pinched = nextPinched(s.pinched, ratio, this.params);
+    // 張開手掌：連續 OPEN_FRAMES 格一致才切換；捏著時一定不是
+    const openNow = !s.pinched && isOpenPalm(lm, this.params);
+    this.openVotes = openNow
+      ? Math.min(OPEN_FRAMES, this.openVotes + 1)
+      : Math.max(-OPEN_FRAMES, this.openVotes - 1);
+    if (this.openVotes >= OPEN_FRAMES) s.open = true;
+    else if (this.openVotes <= -OPEN_FRAMES || s.pinched) s.open = false;
+    const pc = palmCenter(lm);
+    if (pc) {
+      s.palmX = pc.x;
+      s.palmY = pc.y;
+    }
     if (at) {
       s.x = at.x;
       s.y = at.y;

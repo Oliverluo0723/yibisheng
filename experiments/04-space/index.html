@@ -93,6 +93,7 @@
         transition: background 0.1s, width 0.1s, height 0.1s;
       }
       .hand-cursor.down { background: var(--hud); }
+      .hand-cursor.open { left: -22px; top: -22px; width: 44px; height: 44px; border-style: dashed; }
       .hand-cursor[hidden] { display: none; }
       .hand-preview {
         position: fixed;
@@ -110,7 +111,7 @@
   </head>
   <body>
     <div id="keys" class="hud">
-      左鍵畫 · E 順時針轉 · Q 逆時針轉 · 滾輪縮放 · ` 調整 · 1–4 種 · P 紙 · B 景 · H 隱藏 ·
+      左鍵畫 · E 順時針轉 · Q 逆時針轉 · 滾輪縮放 · 用手：捏＝畫、張開手掌左右上下揮＝轉 · ` 調整 · 1–4 種 · P 紙 · B 景 · H 隱藏 ·
       <a href="../../index.html">實驗目錄</a>
       <div id="toggles"></div>
     </div>

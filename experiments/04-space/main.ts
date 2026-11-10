@@ -18,6 +18,7 @@ import {
   disposeBackdrop,
   loadBackdrop,
 } from '../../src/render/backdrop';
+import { orbitOffset } from '../../src/render/orbit';
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
@@ -303,7 +304,7 @@ async function toggleHand() {
     try {
       await hand.start();
       handUI.preview.hidden = false;
-      status('伸出手：捏起拇指和食指就是下筆，張開就收筆');
+      status('伸出手：捏起拇指和食指＝下筆，鬆開＝收筆；五指張開左右上下揮＝轉向');
       setTimeout(() => status(''), 5000);
     } catch (err) {
       console.error(err);
@@ -314,14 +315,47 @@ async function toggleHand() {
   panel.refresh();
 }
 
-/** 每幀：把手的位置當成滑鼠，捏 / 放開當成按下 / 放開 */
+/** 張開手掌轉向：手掌每移動畫面寬度的 1 倍 = 轉幾弧度 */
+const PALM_YAW = Math.PI * 1.6;
+const PALM_PITCH = Math.PI * 0.9;
+/** 手掌轉向的速度（弧度 / 幀），放開後慢慢衰減 = 慣性 */
+const palmSpin = { yaw: 0, pitch: 0, lastX: 0, lastY: 0, tracking: false };
+
+function stepPalmSpin(now: number) {
+  const h = hand.state;
+  if (h.seen && h.open) {
+    if (palmSpin.tracking) {
+      // 像用手撥地球儀：手往右揮，植物正面往右走（從上往下看是逆時針，所以 yaw 取負）
+      const yaw = -(h.palmX - palmSpin.lastX) * PALM_YAW;
+      const pitch = (h.palmY - palmSpin.lastY) * PALM_PITCH;
+      palmSpin.yaw = palmSpin.yaw * 0.5 + yaw * 0.5;
+      palmSpin.pitch = palmSpin.pitch * 0.5 + pitch * 0.5;
+    }
+    palmSpin.tracking = true;
+    palmSpin.lastX = h.palmX;
+    palmSpin.lastY = h.palmY;
+    lastInteract = now;
+  } else {
+    palmSpin.tracking = false;
+    palmSpin.yaw *= 0.93;
+    palmSpin.pitch *= 0.93;
+  }
+  if (Math.abs(palmSpin.yaw) + Math.abs(palmSpin.pitch) > 1e-4) {
+    orbitBy(palmSpin.yaw, palmSpin.pitch);
+    lastInteract = now;
+  }
+}
+
+/** 每幀：把手的位置當成滑鼠，捏 / 放開當成按下 / 放開，張開手掌轉向 */
 function stepHand(now: number) {
   if (!hand.running) return;
   const wasPinched = hand.state.pinched;
   const h = hand.update(now, window.innerWidth, window.innerHeight);
+  stepPalmSpin(now);
   const c = handUI.cursor;
   c.hidden = !h.seen;
   c.classList.toggle('down', h.pinched);
+  c.classList.toggle('open', h.open);
   c.style.transform = `translate(${h.x}px, ${h.y}px)`;
   if (!h.seen) {
     if (drawing && !drawing.lifted) liftDraw(mouseX, mouseY);
@@ -508,7 +542,6 @@ const panel = createUI(state, penParams, {
 const orbitKeys = new Set<string>();
 /** 每秒轉幾度 */
 const ORBIT_DEG_PER_SEC = 75;
-const WORLD_UP = new THREE.Vector3(0, 1, 0);
 window.addEventListener('keydown', (ev) => {
   if (ev.target instanceof HTMLInputElement || ev.metaKey || ev.ctrlKey) return;
   const k = ev.key.toLowerCase();
@@ -527,11 +560,24 @@ window.addEventListener('blur', () => orbitKeys.clear());
 function stepOrbit(dtMs: number, now: number) {
   const dir = (orbitKeys.has('e') ? 1 : 0) - (orbitKeys.has('q') ? 1 : 0);
   if (dir === 0) return;
-  const angle = THREE.MathUtils.degToRad(ORBIT_DEG_PER_SEC) * (dtMs / 1000) * dir;
-  const offset = camera.position.clone().sub(controls.target);
-  offset.applyAxisAngle(WORLD_UP, angle);
-  camera.position.copy(controls.target).add(offset);
+  orbitBy(THREE.MathUtils.degToRad(ORBIT_DEG_PER_SEC) * (dtMs / 1000) * dir, 0);
   lastInteract = now;
+}
+
+/** 俯仰的範圍：離正上方、正下方至少這麼多（弧度），避免翻過頭 */
+const PITCH_MARGIN = THREE.MathUtils.degToRad(12);
+
+/**
+ * 鏡頭繞注視點轉：yaw > 0 = 從上往下看植物順時針轉；pitch > 0 = 鏡頭往上（從上面看下來）。
+ */
+function orbitBy(yaw: number, pitch: number) {
+  const o = camera.position.clone().sub(controls.target);
+  const next = orbitOffset({ x: o.x, y: o.y, z: o.z }, yaw, pitch, PITCH_MARGIN);
+  camera.position.set(
+    controls.target.x + next.x,
+    controls.target.y + next.y,
+    controls.target.z + next.z,
+  );
 }
 
 window.addEventListener('keydown', (ev) => {
