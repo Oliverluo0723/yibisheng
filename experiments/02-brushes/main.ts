@@ -18,6 +18,7 @@ import {
 import { drawPaper } from '../../src/render/paper';
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import { StrokeRecorder } from '../../src/strokes/recorder';
+import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER, type BgState } from './backgrounds';
 import { createPanel, type GrowState } from './panel';
 
@@ -166,10 +167,15 @@ new p5((p: p5) => {
   }
 
   function backgroundChoices(): string[] {
+    return backgroundThumbs().map((t) => t.label);
+  }
+
+  function backgroundThumbs(): Thumb[] {
+    const user = backdrops.get(BG_USER);
     return [
-      BG_PAPER,
-      ...BG_SAMPLES.map((x) => x.name),
-      ...(backdrops.has(BG_USER) ? [BG_USER] : []),
+      { label: BG_PAPER, kind: 'color', src: palette().paper.hex },
+      ...BG_SAMPLES.map((x) => ({ label: x.name, kind: x.kind, src: x.src })),
+      ...(user?.objectUrl ? [{ label: BG_USER, kind: user.kind, src: user.objectUrl }] : []),
     ];
   }
 
@@ -319,7 +325,8 @@ new p5((p: p5) => {
       renderToggles();
     },
     selectBackground: (choice) => void selectBackground(choice),
-    backgroundChoices,
+    backgroundThumbs,
+    currentBrush: () => ui.brush,
     openFile: (file) => void useFile(file),
   });
 
@@ -334,6 +341,7 @@ new p5((p: p5) => {
       ui.color = 0;
       newPaper();
       renderHud();
+      panel.updateBackground();
     } else if (k === 'a') {
       ui.auto = !ui.auto;
       renderHud();
@@ -346,11 +354,11 @@ new p5((p: p5) => {
       void selectBackground(list[(list.indexOf(bg.choice) + 1) % list.length] ?? BG_PAPER);
     } else if (k === 'g') {
       grow.enabled = !grow.enabled;
-      for (const c of panel.gui.controllersRecursive()) c.updateDisplay();
+      panel.refresh();
       renderToggles();
     } else if (k === 'm') {
       grow.sound.enabled = !grow.sound.enabled;
-      for (const c of panel.gui.controllersRecursive()) c.updateDisplay();
+      panel.refresh();
       renderToggles();
     }
   });
