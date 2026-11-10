@@ -38,14 +38,15 @@ export type GrowthParams = {
   maxTips: number;
 };
 
+/** 預設值：使用者第一次試玩的回饋是「太快、長太多」，所以放慢、變少、拉長生命。 */
 export const defaultGrowthParams: GrowthParams = {
-  speed: 0.08,
+  speed: 0.03,
   segmentLength: 0.012,
-  branchChance: 0.25,
+  branchChance: 0.12,
   spread: 0.6,
   noise: 0.35,
-  maxDepth: 5,
-  life: 6000,
-  tipsPerStroke: 6,
-  maxTips: 300,
+  maxDepth: 3,
+  life: 9000,
+  tipsPerStroke: 4,
+  maxTips: 60,
 };

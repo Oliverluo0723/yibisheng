@@ -42,7 +42,7 @@ test('never exceeds maxDepth', () => {
 test('respects maxTips', () => {
   const p = new BranchingPlant(
     stroke,
-    { ...defaultGrowthParams, branchChance: 1, maxDepth: 8, maxTips: 20 },
+    { ...defaultGrowthParams, branchChance: 1, maxDepth: 8, maxTips: 20, tipsPerStroke: 6 },
     9,
   );
   let branches = 0;
