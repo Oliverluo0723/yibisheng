@@ -11,6 +11,7 @@ import {
 } from '../../src/growth/branching3d';
 import { hashString, mulberry32 } from '../../src/growth/rng';
 import { planGrass, planLily, planStock } from '../../src/growth/species3d';
+import { HandTracker } from '../../src/input/hand';
 import {
   type Backdrop,
   backdropFromFile,
@@ -40,7 +41,7 @@ const state: State = {
   sound: { enabled: true, volume: 0.8 },
   bg: { choice: BG_PAPER },
 };
-const ui = { palette: 0, color: 0, auto: false, autoNext: 0 };
+const ui = { palette: 0, color: 0, auto: false, autoNext: 0, hand: false };
 const penParams = { ...defaultPenParams };
 const pen = new SpringPen(penParams);
 const engine = new WebAudioEngine(13);
@@ -221,21 +222,21 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   mouseY = e.clientY;
 });
 
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0) return;
+/** 下筆（滑鼠左鍵或捏手指）：x、y 是螢幕像素 */
+function beginDraw(x: number, y: number): boolean {
   if (!audioStarted) {
     audioStarted = true;
     void engine.start().then(() => engine.setVolume(state.sound.volume));
   }
   finishDrawing();
-  mouseX = e.clientX;
-  mouseY = e.clientY;
+  mouseX = x;
+  mouseY = y;
   // 畫在「穿過鏡頭注視點、正對鏡頭」的那個面上
   const normal = new THREE.Vector3();
   camera.getWorldDirection(normal).negate();
   const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, controls.target);
-  const start = screenToPlane(e.clientX, e.clientY, plane);
-  if (!start) return;
+  const start = screenToPlane(x, y, plane);
+  if (!start) return false;
   const dist = camera.position.distanceTo(controls.target);
   const worldPerPx =
     (2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / window.innerHeight;
@@ -243,32 +244,94 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   const view = new PlantView(color, leafTex, { ...state.leaf }, { ...state.stem });
   scene.add(view.group);
   items.push({ view });
-  const first = pen.reset(e.clientX, e.clientY);
+  const first = pen.reset(x, y);
   drawing = {
     view,
     points: [start],
     last: first,
     lastWorld: start,
     lifted: false,
-    tx: e.clientX,
-    ty: e.clientY,
+    tx: x,
+    ty: y,
     plane,
     normal: { x: normal.x, y: normal.y, z: normal.z },
     worldPerPx,
     kind: state.species.kind,
     color,
   };
-  renderer.domElement.setPointerCapture(e.pointerId);
   renderHud();
+  return true;
+}
+
+/** 收筆：之後筆尖滑到 (x, y) 並漸細 */
+function liftDraw(x: number, y: number) {
+  if (!drawing || drawing.lifted) return;
+  drawing.lifted = true;
+  drawing.tx = x;
+  drawing.ty = y;
+  pen.lift();
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  if (beginDraw(e.clientX, e.clientY)) renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (e.button === 0) liftDraw(e.clientX, e.clientY);
 });
 
-renderer.domElement.addEventListener('pointerup', (e) => {
-  if (e.button !== 0 || !drawing || drawing.lifted) return;
-  drawing.lifted = true;
-  drawing.tx = e.clientX;
-  drawing.ty = e.clientY;
-  pen.lift();
-});
+// ---------- 手勢：捏起來就是下筆 ----------
+const hand = new HandTracker();
+const handUI = {
+  cursor: Object.assign(document.createElement('div'), { className: 'hand-cursor' }),
+  preview: hand.video,
+};
+handUI.cursor.hidden = true;
+handUI.preview.className = 'hand-preview';
+handUI.preview.hidden = true;
+document.body.append(handUI.cursor, handUI.preview);
+
+async function toggleHand() {
+  if (hand.running) {
+    if (drawing && !drawing.lifted) liftDraw(mouseX, mouseY);
+    hand.stop();
+    handUI.cursor.hidden = true;
+    handUI.preview.hidden = true;
+    status('');
+  } else {
+    status('開啟攝影機、載入手勢模型中…（第一次要連網，約幾秒）');
+    try {
+      await hand.start();
+      handUI.preview.hidden = false;
+      status('伸出手：捏起拇指和食指就是下筆，張開就收筆');
+      setTimeout(() => status(''), 5000);
+    } catch (err) {
+      console.error(err);
+      status(err instanceof Error ? err.message : String(err));
+    }
+  }
+  ui.hand = hand.running;
+  panel.refresh();
+}
+
+/** 每幀：把手的位置當成滑鼠，捏 / 放開當成按下 / 放開 */
+function stepHand(now: number) {
+  if (!hand.running) return;
+  const wasPinched = hand.state.pinched;
+  const h = hand.update(now, window.innerWidth, window.innerHeight);
+  const c = handUI.cursor;
+  c.hidden = !h.seen;
+  c.classList.toggle('down', h.pinched);
+  c.style.transform = `translate(${h.x}px, ${h.y}px)`;
+  if (!h.seen) {
+    if (drawing && !drawing.lifted) liftDraw(mouseX, mouseY);
+    return;
+  }
+  mouseX = h.x;
+  mouseY = h.y;
+  if (h.pinched && !wasPinched) beginDraw(h.x, h.y);
+  else if (!h.pinched && wasPinched) liftDraw(h.x, h.y);
+}
 
 function finishDrawing() {
   const d = drawing;
@@ -416,6 +479,8 @@ function renderToggles() {
 }
 
 const panel = createUI(state, penParams, {
+  hand: () => ui.hand,
+  toggleHand: () => void toggleHand(),
   palette,
   colorIndex: () => (ui.auto ? -1 : ui.color),
   setColor: (i) => {
@@ -478,6 +543,7 @@ let prev = performance.now();
 renderer.setAnimationLoop((now: number) => {
   const dt = Math.min(100, now - prev);
   prev = now;
+  stepHand(now);
   stepDrawing();
   const sound = (events: Growth3DEvent[]) => {
     if (!state.sound.enabled) return;

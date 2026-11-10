@@ -49,6 +49,9 @@ export type Actions = {
   /** 目前選的色票；-1 = 自動 */
   colorIndex(): number;
   setColor(i: number): void;
+  /** 手勢追蹤開著沒 */
+  hand(): boolean;
+  toggleHand(): void;
 };
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
@@ -155,6 +158,10 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
   gear.title = '調整（`）';
   gear.onclick = () => toggleSettings();
   top.append(gear);
+  const handBtn = el('button', 'ui-dock-btn', '手');
+  handBtn.title = '用手畫：捏起拇指和食指就是下筆（要開攝影機）';
+  handBtn.onclick = () => actions.toggleHand();
+  top.append(handBtn);
   for (const [label, key, fn] of [
     ['復原', 'Z', actions.undo],
     ['存圖', 'S', actions.save],
@@ -302,6 +309,7 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
   return {
     /** 種、色、紙、景變了：重畫前台，「此種」分頁也跟著換 */
     refresh() {
+      handBtn.classList.toggle('on', actions.hand());
       renderBar();
       render();
     },
