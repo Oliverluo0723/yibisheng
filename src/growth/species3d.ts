@@ -208,6 +208,84 @@ export function planStock(stroke: V3[], p: FlowerParams, rng: () => number): Sto
   return stalks;
 }
 
+// ---------- 丁香 ----------
+export type LilacLeaf = { t: number; dir: V3; size: number };
+/** 圓錐花序裡的一朵小花：h 是在花序軸上的高度（0 底、1 頂），r 是離軸的距離（0..1，越高越窄） */
+export type LilacFloret = { h: number; r: number; dir: V3; delay: number; size: number };
+export type LilacStalk = {
+  base: V3;
+  axis: V3;
+  height: number;
+  delay: number;
+  growMs: number;
+  hue: number;
+  /** 心形葉，成對（相鄰兩片同高、方向相反） */
+  leaves: LilacLeaf[];
+  /** 花序長度（相對 height） */
+  paniclLen: number;
+  florets: LilacFloret[];
+};
+
+/**
+ * 丁香：木質的直枝，下半段對生的心形葉，頂端一串圓錐花序，幾十朵小花由下往上開。
+ */
+export function planLilac(stroke: V3[], p: FlowerParams, rng: () => number): LilacStalk[] {
+  const L = polylineLength(stroke);
+  const n = Math.max(1, Math.min(8, Math.round((L / 0.3) * p.density)));
+  const stalks: LilacStalk[] = [];
+  for (let i = 0; i < n; i++) {
+    const u = n === 1 ? 0.5 : (i + (rng() - 0.5) * 0.5) / (n - 1);
+    const at = pointAt(stroke, Math.max(0, Math.min(1, u)));
+    const axis = leanUp(rng, 0.12);
+    const height = (0.5 + rng() * 0.35) * p.height;
+    const delay = Math.max(0, u) * 500 + rng() * 300;
+    const growMs = 1600 + rng() * 600;
+    const ref = perpendicular(axis);
+    let roll = rng() * Math.PI * 2;
+    const leaves: LilacLeaf[] = [];
+    const pairs = 3 + Math.floor(rng() * 2);
+    for (let k = 0; k < pairs; k++) {
+      roll += Math.PI / 2 + (rng() - 0.5) * 0.4;
+      const t = 0.12 + (k / pairs) * 0.5;
+      const size = 0.9 + rng() * 0.3;
+      for (const side of [0, Math.PI]) {
+        const radial = rotate(ref, axis, roll + side);
+        leaves.push({ t, dir: norm(add(scale(radial, 0.8), scale(axis, 0.45))), size });
+      }
+    }
+    const paniclLen = 0.3 + rng() * 0.12;
+    const florets: LilacFloret[] = [];
+    const nF = 40 + Math.floor(rng() * 41);
+    for (let k = 0; k < nF; k++) {
+      roll += GOLDEN;
+      const h = Math.min(1, (k + rng() * 0.8) / nF);
+      // 圓錐：底寬頂窄，再加一點亂度
+      const r = (1 - h) * (0.55 + rng() * 0.45);
+      const radial = rotate(ref, axis, roll);
+      florets.push({
+        h,
+        r,
+        dir: norm(add(scale(radial, 0.9), scale(axis, 0.35 + h * 0.5))),
+        // 由下往上開，每朵之間有點抖
+        delay: delay + growMs + h * 2600 + rng() * 350,
+        size: 0.8 + rng() * 0.4,
+      });
+    }
+    stalks.push({
+      base: at.p,
+      axis,
+      height,
+      delay,
+      growMs,
+      hue: rng(),
+      leaves,
+      paniclLen,
+      florets,
+    });
+  }
+  return stalks;
+}
+
 /** 給一個「往前」的方向，算出一組正交基底（x 側、y 前、z 上），畫花時用 */
 export function frameFor(forward: V3, upHint: V3 = UP): { x: V3; y: V3; z: V3 } {
   const y = norm(forward);

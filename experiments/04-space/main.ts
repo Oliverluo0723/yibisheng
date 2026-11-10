@@ -10,7 +10,7 @@ import {
   type V3,
 } from '../../src/growth/branching3d';
 import { hashString, mulberry32 } from '../../src/growth/rng';
-import { planGrass, planLily, planStock } from '../../src/growth/species3d';
+import { planGrass, planLilac, planLily, planStock } from '../../src/growth/species3d';
 import { HandTracker } from '../../src/input/hand';
 import {
   type Backdrop,
@@ -32,7 +32,7 @@ import {
   makeLeafTextures,
   PlantView,
 } from './plantView';
-import { GrassView, type Grower, LILY_RED, LilyView, StockView } from './species';
+import { GrassView, type Grower, LILY_RED, LilacView, LilyView, StockView } from './species';
 
 const state: State = {
   growth: { ...defaultGrowth3DParams },
@@ -403,6 +403,7 @@ function finishDrawing() {
   if (d.kind === 1) grower = new GrassView(planGrass(d.points, fp, rng), now, tint);
   else if (d.kind === 2)
     grower = new LilyView(planLily(d.points, fp, rng), now, tint ?? new THREE.Color(LILY_RED));
+  else if (d.kind === 4) grower = new LilacView(planLilac(d.points, fp, rng), now, tint);
   else grower = new StockView(planStock(d.points, fp, rng), now, tint);
   item.grower = grower;
   scene.add(grower.group);

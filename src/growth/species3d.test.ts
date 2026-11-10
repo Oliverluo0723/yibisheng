@@ -1,7 +1,15 @@
 import { expect, test } from 'vitest';
 import { dot, len, type V3, v3 } from './branching3d';
 import { mulberry32 } from './rng';
-import { frameFor, planGrass, planLily, planStock, pointAt, polylineLength } from './species3d';
+import {
+  frameFor,
+  planGrass,
+  planLilac,
+  planLily,
+  planStock,
+  pointAt,
+  polylineLength,
+} from './species3d';
 
 const line: V3[] = Array.from({ length: 21 }, (_, i) => v3(-0.5 + i * 0.05, 0, 0));
 
@@ -61,4 +69,41 @@ test('frameFor builds an orthonormal right-handed basis', () => {
   expect(dot(f.x, f.y)).toBeCloseTo(0);
   expect(dot(f.y, f.z)).toBeCloseTo(0);
   expect(f.z.y).toBeGreaterThan(0);
+});
+
+test('lilac: opposite leaf pairs on the lower stem, a cone of 40–80 florets on top opening bottom-up', () => {
+  const stalks = planLilac(line, { density: 1, height: 1 }, mulberry32(4));
+  expect(stalks.length).toBeGreaterThanOrEqual(2);
+  expect(stalks).toEqual(planLilac(line, { density: 1, height: 1 }, mulberry32(4)));
+  for (const s of stalks) {
+    expect(s.axis.y).toBeGreaterThan(0.9);
+    // 葉子成對：同一高度兩片、方向相反
+    expect(s.leaves.length % 2).toBe(0);
+    for (let i = 0; i < s.leaves.length; i += 2) {
+      const a = s.leaves[i] as { t: number; dir: V3 };
+      const b = s.leaves[i + 1] as { t: number; dir: V3 };
+      expect(a.t).toBeCloseTo(b.t);
+      expect(dot(a.dir, b.dir)).toBeLessThan(-0.3);
+      expect(a.t).toBeLessThan(0.7);
+    }
+    // 圓錐花序：越高越窄，由下往上開
+    expect(s.florets.length).toBeGreaterThanOrEqual(40);
+    expect(s.florets.length).toBeLessThanOrEqual(80);
+    const low = s.florets.filter((f) => f.h < 0.3).map((f) => f.r);
+    const high = s.florets.filter((f) => f.h > 0.7).map((f) => f.r);
+    const avg = (xs: number[]) => xs.reduce((x, y) => x + y, 0) / xs.length;
+    expect(avg(high)).toBeLessThan(avg(low));
+    const sorted = [...s.florets].sort((a, b) => a.h - b.h);
+    for (let i = 1; i < sorted.length; i++)
+      expect((sorted[i] as { delay: number }).delay).toBeGreaterThan(
+        (sorted[i - 1] as { delay: number }).delay - 400,
+      );
+    for (const f of s.florets) {
+      expect(f.h).toBeGreaterThanOrEqual(0);
+      expect(f.h).toBeLessThanOrEqual(1);
+      expect(f.r).toBeGreaterThanOrEqual(0);
+      expect(f.r).toBeLessThanOrEqual(1);
+      expect(f.delay).toBeGreaterThanOrEqual(s.delay + s.growMs);
+    }
+  }
 });

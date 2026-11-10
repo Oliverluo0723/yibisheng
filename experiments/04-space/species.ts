@@ -11,6 +11,7 @@ import {
 import {
   frameFor,
   type GrassBlade,
+  type LilacStalk,
   type LilyStalk,
   type StockStalk,
 } from '../../src/growth/species3d';
@@ -85,6 +86,12 @@ const STOCK_PETAL = ribbon(
   10,
   (t) => 0.95 * Math.sin(Math.PI * (0.15 + 0.85 * t)) ** 0.8 * Math.min(1, 0.35 + t * 1.6),
   (t) => 0.18 * t * t,
+);
+/** 丁香的葉：心形，基部最寬、尖端收尖 */
+const HEART = ribbon(
+  10,
+  (t) => 0.5 * Math.sin(Math.PI * (0.08 + 0.92 * t) ** 0.65) ** 0.9 * (t < 0.08 ? t / 0.08 : 1),
+  (t) => -0.1 * t * t,
 );
 /** 紫羅蘭的葉：披針形 */
 const LANCE = ribbon(
@@ -479,5 +486,175 @@ export class StockView implements Grower {
   dispose(): void {
     this.group.removeFromParent();
     for (const mesh of [this.stems, this.leaves, this.petals, this.buds]) mesh.dispose();
+  }
+}
+
+// ---------- 丁香 ----------
+export const LILAC_PURPLES = ['#B481BB', '#A58FC2', '#C8A2D8', '#8F77B5', '#D4B8E0'];
+
+/**
+ * 丁香：木質直枝、對生的心形葉，頂端一串圓錐花序。小花是四瓣的十字形，
+ * 底下一截小花筒；花苞比花深一點，由下往上依序開。
+ */
+export class LilacView implements Grower {
+  readonly group = new THREE.Group();
+  private readonly stems: THREE.InstancedMesh;
+  private readonly leaves: THREE.InstancedMesh;
+  private readonly petals: THREE.InstancedMesh;
+  private readonly tubes: THREE.InstancedMesh;
+  private readonly m = new THREE.Matrix4();
+  private readonly start: number;
+  private readonly opened = new Set<string>();
+  private done = false;
+  private readonly endAt: number;
+
+  constructor(
+    private readonly stalks: LilacStalk[],
+    nowMs: number,
+    tint?: THREE.Color,
+  ) {
+    this.start = nowMs;
+    const nLeaves = stalks.reduce((s, x) => s + x.leaves.length, 0);
+    const nFlorets = stalks.reduce((s, x) => s + x.florets.length, 0);
+    // 每株：主枝 + 花序軸；每朵小花：一截花筒
+    this.stems = instanced(CYL, matPlain(0.8), stalks.length * 2 + nFlorets);
+    this.leaves = instanced(HEART, matPlain(0.85), nLeaves);
+    this.petals = instanced(STOCK_PETAL, matPetal(), nFlorets * 4);
+    this.tubes = instanced(SPHERE, matPlain(0.6), nFlorets);
+    const wood = new THREE.Color('#6B5B45');
+    const leaf = new THREE.Color('#567A4C');
+    for (let i = 0; i < this.stems.instanceMatrix.count; i++) this.stems.setColorAt(i, wood);
+    for (let i = 0; i < nLeaves; i++)
+      this.leaves.setColorAt(i, leaf.clone().offsetHSL(0, 0, (Math.random() - 0.5) * 0.08));
+    let pi = 0;
+    let ti = 0;
+    for (const s of stalks) {
+      const base =
+        tint ??
+        new THREE.Color(LILAC_PURPLES[Math.floor(s.hue * LILAC_PURPLES.length)] ?? '#B481BB');
+      for (const _f of s.florets) {
+        const c = base
+          .clone()
+          .offsetHSL((Math.random() - 0.5) * 0.02, 0, (Math.random() - 0.5) * 0.1);
+        for (let k = 0; k < 4; k++) this.petals.setColorAt(pi++, c);
+        // 花苞／花筒比花瓣深一點
+        this.tubes.setColorAt(ti++, c.clone().offsetHSL(0, 0.05, -0.14));
+      }
+    }
+    this.stems.count = this.stems.instanceMatrix.count;
+    this.leaves.count = nLeaves;
+    this.petals.count = nFlorets * 4;
+    this.tubes.count = nFlorets;
+    this.endAt = Math.max(...stalks.flatMap((s) => s.florets.map((f) => f.delay))) + 2500;
+    this.group.add(this.stems, this.leaves, this.petals, this.tubes);
+  }
+
+  get alive(): boolean {
+    return !this.done;
+  }
+
+  step(nowMs: number): Growth3DEvent[] {
+    if (this.done) return [];
+    const t = nowMs - this.start;
+    const events: Growth3DEvent[] = [];
+    let si = this.stalks.length * 2;
+    let li = 0;
+    let pi = 0;
+    let ti = 0;
+    this.stalks.forEach((s, i) => {
+      const g = ease((t - s.delay) / s.growMs);
+      const base = vec(s.base);
+      const axis = vec(s.axis);
+      const at = (u: number) => base.clone().add(axis.clone().multiplyScalar(s.height * u));
+      // 主枝長到 1 - paniclLen 的高度，花序軸接著往上長
+      const stemTop = 1 - s.paniclLen;
+      const gs = Math.min(g, stemTop);
+      this.stems.setMatrixAt(i * 2, g > 0 ? cylinderMatrix(base, at(gs), 0.007, this.m) : ZERO);
+      const gp = Math.max(0, g - stemTop);
+      this.stems.setMatrixAt(
+        i * 2 + 1,
+        gp > 0 ? cylinderMatrix(at(stemTop), at(stemTop + gp), 0.004, this.m) : ZERO,
+      );
+      for (const l of s.leaves) {
+        const k = ease((g - l.t) / 0.25);
+        if (k <= 0) {
+          this.leaves.setMatrixAt(li++, ZERO);
+          continue;
+        }
+        const fr = frameFor(l.dir, s.axis);
+        const size = 0.16 * l.size * k;
+        this.m
+          .copy(basis(fr.x, fr.y, fr.z))
+          .scale(new THREE.Vector3(size, size, size))
+          .setPosition(at(l.t));
+        this.leaves.setMatrixAt(li++, this.m);
+      }
+      const coneR = s.height * s.paniclLen * 0.42;
+      for (const [fi, f] of s.florets.entries()) {
+        // 花序軸長過這朵的高度，小花才冒出來
+        const appear = ease((gp / s.paniclLen - f.h) / 0.2);
+        const open = ease((t - f.delay) / 1100);
+        const key = `${i}-${fi}`;
+        if (open > 0.05 && !this.opened.has(key)) {
+          this.opened.add(key);
+          events.push({ kind: fi % 4 === 0 ? 'branch' : 'leaf', at: s.base, depth: 2, age: t });
+        }
+        if (appear <= 0) {
+          this.stems.setMatrixAt(si++, ZERO);
+          this.tubes.setMatrixAt(ti++, ZERO);
+          for (let k = 0; k < 4; k++) this.petals.setMatrixAt(pi++, ZERO);
+          continue;
+        }
+        const axisPt = at(stemTop + f.h * s.paniclLen);
+        const radialDir = vec(f.dir).sub(axis.clone().multiplyScalar(vec(f.dir).dot(axis)));
+        const rLen = radialDir.length();
+        const center = axisPt
+          .clone()
+          .add(
+            rLen > 1e-5
+              ? radialDir.multiplyScalar((coneR * f.r * appear) / rLen)
+              : new THREE.Vector3(),
+          );
+        // 小花梗：從花序軸到花
+        this.stems.setMatrixAt(si++, cylinderMatrix(axisPt, center, 0.0018, this.m));
+        const size = 0.02 * f.size;
+        // 花筒／花苞：開之前是圓球狀的苞，開了變成細長的筒
+        const bs = size * (0.55 * (1 - open) + 0.3);
+        const fr = frameFor(f.dir, s.axis);
+        const forward = fr.y;
+        this.m
+          .copy(basis(fr.x, fr.y, fr.z))
+          .scale(new THREE.Vector3(bs * 0.6, bs * (1 + open * 1.2), bs * 0.6))
+          .setPosition(center);
+        this.tubes.setMatrixAt(ti++, this.m);
+        const tip = center.clone().add(vec(forward).multiplyScalar(bs * (1 + open * 1.2)));
+        for (let k = 0; k < 4; k++) {
+          const radial = rotate(fr.z, forward, (k / 4) * Math.PI * 2 + Math.PI / 4);
+          const th = 0.25 + open * 1.2;
+          const yv = norm(add(scale(forward, Math.cos(th)), scale(radial, Math.sin(th))));
+          const zv = norm(add(scale(forward, Math.sin(th)), scale(radial, -Math.cos(th))));
+          const xv = norm({
+            x: yv.y * zv.z - yv.z * zv.y,
+            y: yv.z * zv.x - yv.x * zv.z,
+            z: yv.x * zv.y - yv.y * zv.x,
+          });
+          const ps = size * open;
+          this.m
+            .copy(basis(xv, yv, zv))
+            .scale(new THREE.Vector3(ps, ps, ps))
+            .setPosition(tip);
+          this.petals.setMatrixAt(pi++, open > 0.01 ? this.m : ZERO);
+        }
+      }
+    });
+    for (const mesh of [this.stems, this.leaves, this.petals, this.tubes])
+      mesh.instanceMatrix.needsUpdate = true;
+    if (t > this.endAt) this.done = true;
+    return events;
+  }
+
+  dispose(): void {
+    this.group.removeFromParent();
+    for (const mesh of [this.stems, this.leaves, this.petals, this.tubes]) mesh.dispose();
   }
 }
