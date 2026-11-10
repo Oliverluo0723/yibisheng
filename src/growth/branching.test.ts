@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Stroke } from '../strokes/types';
-import { BranchingPlant } from './branching';
+import { BranchingPlant, TICK_MS } from './branching';
 import { defaultGrowthParams, type GrowthEvent } from './types';
 
 const stroke: Stroke = {
@@ -72,6 +72,24 @@ test('segments are isotropic in pixel space when an aspect ratio is given', () =
     expect(len).toBeGreaterThan(defaultGrowthParams.segmentLength * 0.9);
     expect(len).toBeLessThan(defaultGrowthParams.segmentLength * 1.5);
   }
+});
+
+test('growing exposes the partial segment of every live tip', () => {
+  const p = new BranchingPlant(stroke, { ...defaultGrowthParams, tipsPerStroke: 4 }, 2);
+  p.step(TICK_MS * 3); // 還不到一段的長度
+  expect(p.segments).toHaveLength(0);
+  const live = p.growing;
+  expect(live).toHaveLength(4);
+  for (const g of live) {
+    const len = Math.hypot(g.x2 - g.x1, g.y2 - g.y1);
+    expect(len).toBeGreaterThan(0);
+    expect(len).toBeLessThan(defaultGrowthParams.segmentLength);
+    expect(g.depth).toBe(0);
+  }
+  // 死掉之後沒有正在長的段
+  const dead = new BranchingPlant(stroke, { ...defaultGrowthParams, life: 100 }, 2);
+  dead.step(500);
+  expect(dead.growing).toHaveLength(0);
 });
 
 test('single-point stroke does not throw', () => {

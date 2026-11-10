@@ -24,7 +24,10 @@ export const defaultRenderParams: RenderParams = {
 const PASSES = 3;
 
 /** 填底色並撒上淡色小點，做出紙張質感。 */
-export function drawPaper(g: p5.Graphics, palette: Palette, grainDots: number): void {
+/** 繪圖目標：離屏的 p5.Graphics 或主畫布的 p5 實例都可以（Graphics 型別包含 p5）。 */
+export type Surface = p5;
+
+export function drawPaper(g: Surface, palette: Palette, grainDots: number): void {
   g.push();
   g.background(palette.paper);
   g.noStroke();
@@ -39,7 +42,7 @@ export function drawPaper(g: p5.Graphics, palette: Palette, grainDots: number): 
 
 /** 把一條線畫成幾次帶抖動的淡線，疊出顆粒感。座標已是像素。 */
 function grainyLine(
-  g: p5.Graphics,
+  g: Surface,
   x1: number,
   y1: number,
   x2: number,
@@ -59,7 +62,7 @@ function grainyLine(
 }
 
 /** 畫使用者的筆觸（比例座標 → 像素）。 */
-export function drawStroke(g: p5.Graphics, s: Stroke, color: string, params: RenderParams): void {
+export function drawStroke(g: Surface, s: Stroke, color: string, params: RenderParams): void {
   g.push();
   g.strokeCap(g.ROUND);
   for (let i = 1; i < s.points.length; i++) {
@@ -86,12 +89,7 @@ export function drawStroke(g: p5.Graphics, s: Stroke, color: string, params: Ren
 }
 
 /** 畫一段枝條，線寬隨 depth 遞減。 */
-export function drawSegment(
-  g: p5.Graphics,
-  seg: Segment,
-  color: string,
-  params: RenderParams,
-): void {
+export function drawSegment(g: Surface, seg: Segment, color: string, params: RenderParams): void {
   const weight = Math.max(0.5, params.branchWeight * 0.85 ** seg.depth);
   g.push();
   g.strokeCap(g.ROUND);

@@ -51,6 +51,13 @@ export class BranchingPlant {
     return this.tips.length > 0;
   }
 
+  /** 每個活芽「正在長、還沒完成」的那一小段（從上一個節點到目前位置），給畫面每幀畫出連續生長用。 */
+  get growing(): Segment[] {
+    return this.tips
+      .filter((t) => t.pending > 0)
+      .map((t) => ({ x1: t.nx, y1: t.ny, x2: t.x, y2: t.y, depth: t.depth, born: this._age }));
+  }
+
   /** 推進時間（任意 ms），內部以固定步長 tick；回傳這一步新發生的事件。 */
   step(dtMs: number): GrowthEvent[] {
     if (this.tips.length === 0) return [];

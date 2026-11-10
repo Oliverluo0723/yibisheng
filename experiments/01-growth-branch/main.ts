@@ -28,6 +28,12 @@ new p5((p: p5) => {
   let started = false;
 
   const strokeColor = () => inkFor(defaultPalette, 0);
+  /** 芽尖的即時段每幀重畫，不加抖動免得閃爍；透明度配合圖層上 3 次疊畫的視覺濃度 */
+  const liveRender = () => ({
+    ...state.render,
+    grain: 0,
+    alpha: Math.min(255, state.render.alpha),
+  });
 
   /** 重建（或重設大小）離屏圖層並鋪紙。舊圖層一定要 remove，否則每次縮放都會留下一張隱藏 canvas。 */
   function resetLayer() {
@@ -144,6 +150,12 @@ new p5((p: p5) => {
       if (state.sound.enabled) for (const e of events) engine.onGrowth(e);
     }
     p.image(layer, 0, 0);
+    // 芽尖正在長的那一小段直接畫在主畫布上（不累積），讓生長看起來連續而不是一段段冒出
+    for (const entry of plants) {
+      for (const seg of entry.plant.growing) {
+        drawSegment(p, seg, inkFor(defaultPalette, seg.depth + 1), liveRender());
+      }
+    }
   };
 
   // 拖曳視窗邊緣時 resize 事件每幀都來；等停下來再重畫一次
