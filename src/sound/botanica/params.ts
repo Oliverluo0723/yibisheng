@@ -1,7 +1,7 @@
 import type { KeyName } from '../theory/keys';
 
 export type LayerParams = { enabled: boolean; volume: number };
-export type LayerName = 'bed' | 'bloom' | 'grains' | 'drips';
+export type LayerName = 'bed' | 'bloom' | 'grains' | 'drips' | 'drums' | 'piano';
 
 /** 面板直接綁這個物件；改完呼叫 BotanicaEngine.applyParams()。 */
 export type BotanicaParams = {
@@ -12,6 +12,8 @@ export type BotanicaParams = {
   bloom: LayerParams;
   grains: LayerParams;
   drips: LayerParams;
+  drums: LayerParams;
+  piano: LayerParams;
 };
 
 export const defaultBotanicaParams: BotanicaParams = {
@@ -21,6 +23,8 @@ export const defaultBotanicaParams: BotanicaParams = {
   bloom: { enabled: true, volume: 0.8 },
   grains: { enabled: true, volume: 0.7 },
   drips: { enabled: true, volume: 0.6 },
+  drums: { enabled: true, volume: 0.6 },
+  piano: { enabled: true, volume: 0.6 },
 };
 
 /** 深拷貝一份預設值（巢狀物件不共用）。 */

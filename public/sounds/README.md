@@ -2,7 +2,7 @@
 
 來源：**bespoke「Floral v.1 / Floral v.2 — Botanica Sample Pack」**（Gumroad：https://bespokesamples.gumroad.com/l/ddxue），使用者自己的取樣包，原檔在 `~/Downloads/Floral/`。
 
-**授權：待使用者確認。確認前這些音檔只留在本機，不進 git、不公開。**
+**Floral 的授權：待使用者確認。確認前這些音檔只留在本機，不進 git、不公開。**
 
 音檔（mp3）不在 git 裡。要產生：
 

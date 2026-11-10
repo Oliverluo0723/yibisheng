@@ -41,6 +41,22 @@ export interface DripLayer extends Layer {
   glitch(sampleId: string, shift: number): void;
 }
 
+/** 鼓：兩條 loop（打擊、鼓組），音量與低通由引擎依熱度推下來 */
+export interface DrumLayer extends Layer {
+  /** 開始這次的速度（時鐘跟著啟動） */
+  start(bpm: number): void;
+  /** perc、kit 是 0..1 */
+  setLevels(perc: number, kit: number, lowpassHz: number): void;
+}
+
+export type PianoNote = { midi: number; eighth: number; velocity: number };
+
+/** 鋼琴：排一句短句，對齊下一個八分音符 */
+export interface PianoLayer extends Layer {
+  start(bpm: number): void;
+  phrase(notes: readonly PianoNote[]): void;
+}
+
 export interface SampleStore {
   ready(role: SampleRole): boolean;
   loadRole(role: SampleRole): Promise<void>;
