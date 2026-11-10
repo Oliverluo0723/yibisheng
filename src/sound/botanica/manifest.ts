@@ -12,7 +12,10 @@ export type SampleRole =
   | 'bell' // 顆粒：中層
   | 'glitch' // 顆粒：深層
   | 'drip' // 偶發：水滴
-  | 'glitchfx'; // 偶發：glitch
+  | 'glitchfx' // 偶發：glitch
+  | 'kit' // 鼓：鼓組 loop
+  | 'perc' // 鼓：打擊 loop
+  | 'keys'; // 鋼琴：Salamander 單音取樣
 
 export type Sample = {
   id: string;
@@ -26,6 +29,12 @@ export type Sample = {
   source: string;
   /** 轉檔時只取前幾秒 */
   trimSec?: number;
+  /** loop 的速度 */
+  bpm?: number;
+  /** 單音取樣的音高 */
+  midi?: number;
+  /** 不在 Floral 裡、要下載的素材 */
+  url?: string;
 };
 
 export const SOUND_BASE = '/sounds/';
@@ -59,6 +68,71 @@ const C = (): KeyName => 'C';
 
 const named = (role: SampleRole, sources: string[], extra: Partial<Sample> = {}): Sample[] =>
   series(role, sources.length, (n) => sources[n - 1] as string, C, extra);
+
+type Loop = [path: string, bpm: number];
+
+const loops = (role: SampleRole, list: Loop[]): Sample[] =>
+  list.map(([path, bpm], i) => ({
+    id: `${role}-${pad(i + 1)}`,
+    file: `${role}-${pad(i + 1)}.mp3`,
+    role,
+    sourceKey: 'C',
+    gainDb: 0,
+    source: path,
+    bpm,
+  }));
+
+const KIT: Loop[] = [
+  ...[1, 2, 3].map((n): Loop => [`${V1}/drum loops/drum loop ${n} 104bpm.wav`, 104]),
+  [`${V1}/drum loops/drum loop 4 100bpm swung.wav`, 100],
+  ...[5, 6, 7, 8].map((n): Loop => [`${V1}/drum loops/drum loop ${n} 86bpm.wav`, 86]),
+  ...[9, 10].map((n): Loop => [`${V1}/drum loops/drum loop ${n} 119bpm.wav`, 119]),
+  [`${V1}/drum loops/drum loop 11 106bpm.wav`, 106],
+  [`${V2}/drums/loops/drum loop 1 120bpm.wav`, 120],
+  [`${V2}/drums/loops/drum loop 2 118bpm.wav`, 118],
+];
+
+const PERC: Loop[] = [
+  ...[1, 2, 3, 4, 5, 6, 7].map(
+    (n): Loop => [`${V1}/percussion loops/guitar percussion ${pad(n)} 100bpm.wav`, 100],
+  ),
+  ...[1, 2, 3].map(
+    (n): Loop => [`${V1}/percussion loops/percussion loop ${pad(n)} 104bpm.wav`, 104],
+  ),
+  ...[4, 5].map((n): Loop => [`${V1}/percussion loops/percussion loop ${n} 113bpm.wav`, 113]),
+  ...[1, 2].map((n): Loop => [`${V1}/percussion loops/shaker swung 100bpm ${pad(n)}.wav`, 100]),
+  ...[1, 2, 3].map(
+    (n): Loop => [`${V1}/percussion loops/swung percussion loop 100bpm ${pad(n)}.wav`, 100],
+  ),
+  [`${V2}/drums/loops/perc loop 1 70bpm.wav`, 70],
+  [`${V2}/drums/loops/perc loop 2 100 bpm.wav`, 100],
+  [`${V2}/drums/loops/perc loop 3 120bpm.wav`, 120],
+  [`${V2}/drums/loops/shaker loop 118bpm.wav`, 118],
+];
+
+/** Salamander Grand Piano V3（Alexander Holm，CC-BY 3.0），Tone.js 官方範例的托管 */
+const SALAMANDER = 'https://tonejs.github.io/audio/salamander/';
+const NOTE_NAMES: [name: string, pc: number][] = [
+  ['C', 0],
+  ['Ds', 3],
+  ['Fs', 6],
+  ['A', 9],
+];
+const KEYS: Sample[] = [2, 3, 4, 5]
+  .flatMap((oct) =>
+    NOTE_NAMES.map(([n, pc]) => ({ name: `${n}${oct}`, midi: 12 * (oct + 1) + pc })),
+  )
+  .concat([{ name: 'C6', midi: 84 }])
+  .map(({ name, midi }) => ({
+    id: `keys-${name.toLowerCase()}`,
+    file: `keys-${name.toLowerCase()}.mp3`,
+    role: 'keys' as const,
+    sourceKey: 'C' as KeyName,
+    gainDb: 0,
+    source: `salamander/${name}.mp3`,
+    midi,
+    url: `${SALAMANDER}${name}.mp3`,
+  }));
 
 export const SAMPLES: readonly Sample[] = [
   ...named(
@@ -105,6 +179,9 @@ export const SAMPLES: readonly Sample[] = [
     (n) => `${V1}/fx/glitches/glitch${n} ${n <= 6 ? 'Fmaj' : 'Cmaj'}.wav`,
     (n) => (n <= 6 ? 'F' : 'C'),
   ),
+  ...loops('kit', KIT),
+  ...loops('perc', PERC),
+  ...KEYS,
 ];
 
 export function samplesByRole(role: SampleRole): readonly Sample[] {

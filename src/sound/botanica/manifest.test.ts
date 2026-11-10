@@ -13,6 +13,9 @@ const ROLES: SampleRole[] = [
   'glitch',
   'drip',
   'glitchfx',
+  'kit',
+  'perc',
+  'keys',
 ];
 
 test('清單一致：id、file 不重複，每個 role 都有素材', () => {
@@ -30,4 +33,22 @@ test('源調照原檔名：swell 1–2 是 Db，glitchfx 1–6 是 F', () => {
   expect(sampleById('swell-03')?.sourceKey).toBe('C');
   expect(sampleById('glitchfx-06')?.sourceKey).toBe('F');
   expect(sampleById('glitchfx-07')?.sourceKey).toBe('C');
+});
+
+test('鼓組、打擊有 BPM；鋼琴有 MIDI 音高與下載網址', () => {
+  expect(samplesByRole('kit').length).toBe(13);
+  expect(samplesByRole('perc').length).toBe(21);
+  expect(samplesByRole('keys').length).toBe(17);
+  for (const s of [...samplesByRole('kit'), ...samplesByRole('perc')]) {
+    expect(s.bpm).toBeGreaterThanOrEqual(70);
+    expect(s.bpm).toBeLessThanOrEqual(120);
+  }
+  expect(sampleById('kit-05')?.bpm).toBe(86);
+  expect(sampleById('perc-17')?.bpm).toBe(100);
+  const keys = samplesByRole('keys');
+  expect(keys.map((k) => k.midi)).toEqual([
+    36, 39, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84,
+  ]);
+  for (const k of keys)
+    expect(k.url).toMatch(/^https:\/\/tonejs\.github\.io\/audio\/salamander\/[A-G]s?\d\.mp3$/);
 });
