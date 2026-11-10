@@ -1,0 +1,25 @@
+{
+  "name": "p5-botanica",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "p5.js × Botanica — 互動視覺藝術實驗",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "p5": "^2.3.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
