@@ -67,13 +67,9 @@ type Active = {
 
 new p5((p: p5) => {
   let base: p5.Graphics;
-  let live: p5.Graphics;
-  /** 用麥克筆這類「整筆半透明」的筆長出來的枝條，先畫在這層，長完才疊上去 */
-  let growLayer: p5.Graphics;
-  let growLayerDirty = false;
   let active: Active | null = null;
   const recorder = new StrokeRecorder();
-  let painters: { painter: PlantPainter; alpha: number; seq: number }[] = [];
+  let painters: { painter: PlantPainter; seq: number }[] = [];
   let plantSeq = 0;
   /** 每個快照記下當時的植物編號，復原時把之後長出來的植物一起拿掉 */
   const undoStack: { snap: HTMLCanvasElement; seq: number }[] = [];
@@ -93,22 +89,8 @@ new p5((p: p5) => {
     if (keep) ctxOf(next).drawImage(canvasOf(keep), 0, 0, keep.width, keep.height);
     base?.remove();
     base = next;
-    live?.remove();
-    live = p.createGraphics(p.width, p.height);
-    growLayer?.remove();
-    growLayer = p.createGraphics(p.width, p.height);
-    growLayerDirty = false;
     document.body.classList.toggle('dark', palette().dark);
     document.body.style.background = palette().paper.hex;
-  }
-
-  /** 暫存層（麥克筆）以半透明 + 疊色模式畫到目標上 */
-  function compositeLayer(layer: p5.Graphics, target: CanvasRenderingContext2D, alpha: number) {
-    target.save();
-    target.globalAlpha = alpha;
-    target.globalCompositeOperation = palette().dark ? 'screen' : 'multiply';
-    target.drawImage(canvasOf(layer), 0, 0, p.width, p.height);
-    target.restore();
   }
 
   function makeEnv(color: NipponColor, ctx: CanvasRenderingContext2D): BrushEnv {
@@ -119,7 +101,6 @@ new p5((p: p5) => {
       dark: palette().dark,
       noise: (x, y, z) => p.noise(x, y ?? 0, z ?? 0),
       leaves,
-      size: penParams.size,
     };
   }
 
@@ -134,32 +115,21 @@ new p5((p: p5) => {
       hashString(stroke.id),
       p.width / p.height,
     );
-    const buffered = a.brush.buffered;
-    const env = { ...a.env, ctx: ctxOf(buffered ? growLayer : base) };
+    const env = { ...a.env, ctx: ctxOf(base) };
     const painter = new PlantPainter(plant, make, { ...a.brush.params }, env, {
       ...grow.branch,
       size: penParams.size,
       life: grow.growth.life,
     });
-    painters.push({ painter, alpha: buffered?.alpha ?? 1, seq: plantSeq++ });
+    painters.push({ painter, seq: plantSeq++ });
   }
 
   function finishStroke() {
     if (!active) return;
-    if (active.brush.buffered) compositeLayer(live, ctxOf(base), active.brush.buffered.alpha);
     const stroke = recorder.end();
     if (grow.enabled) addPlant(active, stroke);
     active = null;
   }
-
-  /** 麥克筆類的枝條都長完了，就把暫存層疊進畫布 */
-  function bakeGrowLayerIfIdle() {
-    if (!growLayerDirty || painters.some((x) => x.painter.buffered)) return;
-    compositeLayer(growLayer, ctxOf(base), currentGrowAlpha);
-    growLayer.clear();
-    growLayerDirty = false;
-  }
-  let currentGrowAlpha = 1;
 
   function pushUndo() {
     const src = canvasOf(base);
@@ -177,10 +147,6 @@ new p5((p: p5) => {
     if (!entry) return;
     const { snap, seq } = entry;
     painters = painters.filter((x) => x.seq < seq);
-    if (!painters.some((x) => x.painter.buffered)) {
-      growLayer.clear();
-      growLayerDirty = false;
-    }
     const g = ctxOf(base);
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -317,8 +283,7 @@ new p5((p: p5) => {
     const color = pickColor();
     ui.lastColor = color;
     if (ui.auto) renderHud();
-    if (brush.buffered) live.clear();
-    const env = makeEnv(color, ctxOf(brush.buffered ? live : base));
+    const env = makeEnv(color, ctxOf(base));
     const first = pen.reset(p.mouseX, p.mouseY);
     brush.begin(env, first);
     recorder.begin(first.x, first.y, p.width, p.height, p.millis());
@@ -352,21 +317,14 @@ new p5((p: p5) => {
     }
 
     const dt = Math.min(100, p.deltaTime);
-    for (const { painter, alpha } of painters) {
+    for (const { painter } of painters) {
       const events = painter.plant.step(dt);
       painter.paint(p.width, p.height);
-      if (painter.buffered) {
-        growLayerDirty = true;
-        currentGrowAlpha = alpha;
-      }
       if (grow.sound.enabled) for (const e of events) engine.onGrowth(e);
     }
     painters = painters.filter((x) => x.painter.alive);
-    bakeGrowLayerIfIdle();
 
     p.image(base, 0, 0);
-    if (growLayerDirty) compositeLayer(growLayer, ctxOf(p), currentGrowAlpha);
-    if (active?.brush.buffered) compositeLayer(live, ctxOf(p), active.brush.buffered.alpha);
   };
 
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;

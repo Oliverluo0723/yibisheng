@@ -47,8 +47,8 @@ test('each tip gets its own brush and is drawn as one continuous line', () => {
     painter.paint(1000, 800);
   }
   expect(log.length).toBeGreaterThan(20);
-  // 1 支用來判斷 buffered，其餘每支芽一支
-  expect(counter.n - 1).toBeGreaterThanOrEqual(defaultGrowthParams.tipsPerStroke);
+  // 每支芽一支筆
+  expect(counter.n).toBeGreaterThanOrEqual(defaultGrowthParams.tipsPerStroke);
   const lastByBrush = new Map<number, PenSample>();
   for (const { brush, a, b } of log) {
     const prev = lastByBrush.get(brush);

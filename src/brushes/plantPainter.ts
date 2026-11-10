@@ -27,8 +27,6 @@ export const defaultBranchStyle: Omit<BranchStyle, 'size' | 'life'> = {
  */
 export class PlantPainter {
   private readonly tips = new Map<number, { brush: Brush; last: PenSample }>();
-  /** 這支筆要不要畫在暫存層（麥克筆） */
-  readonly buffered: boolean;
 
   constructor(
     readonly plant: BranchingPlant,
@@ -37,9 +35,7 @@ export class PlantPainter {
     private readonly params: Record<string, number>,
     readonly env: BrushEnv,
     private readonly style: BranchStyle,
-  ) {
-    this.buffered = make().buffered !== undefined;
-  }
+  ) {}
 
   get alive(): boolean {
     return this.plant.alive;
@@ -70,8 +66,6 @@ export class PlantPainter {
       const d = Math.hypot(dx, dy);
       if (d < style.minMove) continue;
       const s = sample(x, y, dx, dy, width, st.last.dist + d, st.last.frame + 1);
-      // 不吃速度、用固定筆寬的筆（色紙）讀 env.size：分枝上換成這支芽的寬度
-      env.size = width;
       st.brush.segment(env, st.last, s);
       st.last = s;
     }

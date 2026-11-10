@@ -1,7 +1,6 @@
 import { createBleedBrush } from './bleed';
 import { createDryBrush } from './dry';
 import { createInkBrush } from './ink';
-import { createMarkerBrush } from './marker';
 import { createPastelBrush } from './pastel';
 import { createPollenBrush } from './pollen';
 import { createPressedBrush } from './pressed';
@@ -9,14 +8,13 @@ import type { Brush } from './types';
 
 export type { Brush, BrushEnv } from './types';
 
-/** 七支筆的建構函式，順序 = 鍵盤 1–7。每支分枝要各自一份筆的狀態時用。 */
+/** 筆的建構函式，順序 = 鍵盤 1、2、3…。每支分枝要各自一份筆的狀態時用。 */
 export const BRUSH_FACTORIES: (() => Brush)[] = [
   createInkBrush,
   createDryBrush,
   createBleedBrush,
   createPollenBrush,
   createPastelBrush,
-  createMarkerBrush,
   createPressedBrush,
 ];
 

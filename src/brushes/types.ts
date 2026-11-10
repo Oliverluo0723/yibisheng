@@ -13,8 +13,6 @@ export type BrushEnv = {
   /** 0..1 的雜訊（p5.noise） */
   noise: (x: number, y?: number, z?: number) => number;
   leaves: LeafSprite[];
-  /** 筆尖面板上的基本筆寬（px），給不吃速度的筆用 */
-  size: number;
 };
 
 export type ParamSpec = { label: string; min: number; max: number; step: number };
@@ -29,11 +27,6 @@ export interface Brush {
   params: Record<string, number>;
   /** 每個參數的範圍與中文標籤 */
   specs: Record<string, ParamSpec>;
-  /**
-   * 有值時：整筆先不透明地畫在暫存層，放開後才以這個透明度疊上畫布，
-   * 這樣同一筆自己重疊的地方不會變深（麥克筆需要）。
-   */
-  buffered?: { alpha: number };
   /** false：放開就結束，不做收筆漸細 */
   taper: boolean;
   begin(env: BrushEnv, s: PenSample): void;
