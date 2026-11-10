@@ -3,8 +3,14 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { loadAllLeaves } from '../../src/brushes/leaves';
 import { defaultPenParams, type PenSample, SpringPen } from '../../src/brushes/pen';
 import { type NipponColor, PALETTES } from '../../src/color/nippon';
-import { defaultGrowth3DParams, Plant3D, type V3 } from '../../src/growth/branching3d';
-import { hashString } from '../../src/growth/rng';
+import {
+  defaultGrowth3DParams,
+  type Growth3DEvent,
+  Plant3D,
+  type V3,
+} from '../../src/growth/branching3d';
+import { hashString, mulberry32 } from '../../src/growth/rng';
+import { planGrass, planLily, planStock } from '../../src/growth/species3d';
 import {
   type Backdrop,
   backdropFromFile,
@@ -14,7 +20,7 @@ import {
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
-import { createPanel, type State } from './panel';
+import { createPanel, SPECIES, type State } from './panel';
 import {
   defaultLeafStyle,
   defaultStemStyle,
@@ -22,10 +28,12 @@ import {
   makeLeafTextures,
   PlantView,
 } from './plantView';
+import { GrassView, type Grower, LILY_RED, LilyView, StockView } from './species';
 
 const state: State = {
   growth: { ...defaultGrowth3DParams },
   grow: { enabled: true },
+  species: { kind: 0, useSwatch: false, density: 1, height: 1 },
   leaf: { ...defaultLeafStyle },
   stem: { ...defaultStemStyle },
   view: { autoRotate: true, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
@@ -171,9 +179,14 @@ type Drawing = {
   /** 面的法線（朝鏡頭） */
   normal: V3;
   worldPerPx: number;
+  /** 這一筆要長什麼（SPECIES 的索引） */
+  kind: number;
+  color: THREE.Color;
 };
 let drawing: Drawing | null = null;
-let views: PlantView[] = [];
+/** 每一筆：畫出來的主莖（PlantView）+ 放開後長出的東西 */
+type Item = { view: PlantView; grower?: Grower };
+let items: Item[] = [];
 
 status('葉片素材載入中…');
 loadAllLeaves()
@@ -229,7 +242,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
   const color = new THREE.Color(pickColor().hex);
   const view = new PlantView(color, leafTex, { ...state.leaf }, { ...state.stem });
   scene.add(view.group);
-  views.push(view);
+  items.push({ view });
   const first = pen.reset(e.clientX, e.clientY);
   drawing = {
     view,
@@ -242,6 +255,8 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     plane,
     normal: { x: normal.x, y: normal.y, z: normal.z },
     worldPerPx,
+    kind: state.species.kind,
+    color,
   };
   renderer.domElement.setPointerCapture(e.pointerId);
   renderHud();
@@ -261,7 +276,24 @@ function finishDrawing() {
   drawing = null;
   if (!state.grow.enabled || d.points.length < 2) return;
   const seed = hashString(`${performance.now()}-${d.points.length}`);
-  d.view.plant = new Plant3D(d.points, { ...state.growth }, seed, d.normal);
+  const item = items.find((x) => x.view === d.view);
+  if (!item) return;
+  const rng = mulberry32(seed);
+  const now = performance.now();
+  const sp = state.species;
+  const tint = sp.useSwatch ? d.color : undefined;
+  const fp = { density: sp.density, height: sp.height };
+  if (d.kind === 0) {
+    d.view.plant = new Plant3D(d.points, { ...state.growth }, seed, d.normal);
+    return;
+  }
+  let grower: Grower;
+  if (d.kind === 1) grower = new GrassView(planGrass(d.points, fp, rng), now, tint);
+  else if (d.kind === 2)
+    grower = new LilyView(planLily(d.points, fp, rng), now, tint ?? new THREE.Color(LILY_RED));
+  else grower = new StockView(planStock(d.points, fp, rng), now, tint);
+  item.grower = grower;
+  scene.add(grower.group);
 }
 
 function stepDrawing() {
@@ -270,7 +302,8 @@ function stepDrawing() {
   const s = d.lifted ? pen.step(d.tx, d.ty) : pen.step(mouseX, mouseY);
   const w = screenToPlane(s.x, s.y, d.plane);
   if (w) {
-    const r = Math.max(0.002, s.width * d.worldPerPx * 0.35);
+    // 押花樹的主莖粗；草和花的那一筆只是細細的「種下去的線」
+    const r = Math.max(0.0015, s.width * d.worldPerPx * (d.kind === 0 ? 0.35 : 0.1));
     const dx = w.x - d.lastWorld.x;
     const dy = w.y - d.lastWorld.y;
     const dz = w.z - d.lastWorld.z;
@@ -341,12 +374,17 @@ window.addEventListener('drop', (ev) => {
 // ---------- 動作 ----------
 function undo() {
   finishDrawing();
-  views.pop()?.dispose();
+  const last = items.pop();
+  last?.view.dispose();
+  last?.grower?.dispose();
 }
 function clear() {
   finishDrawing();
-  for (const v of views) v.dispose();
-  views = [];
+  for (const it of items) {
+    it.view.dispose();
+    it.grower?.dispose();
+  }
+  items = [];
 }
 function save() {
   renderer.domElement.toBlob((blob) => {
@@ -367,7 +405,7 @@ function resetView() {
 // ---------- HUD ----------
 function renderHud() {
   const pal = palette();
-  $('brush-name').textContent = '押花';
+  $('brush-name').textContent = SPECIES[state.species.kind]?.name ?? '押花';
   const shown = ui.auto ? undefined : pal.inks[ui.color];
   const small = (t: string) => Object.assign(document.createElement('small'), { textContent: t });
   $('color-name').replaceChildren(shown ? `${shown.kanji}　` : '自動配色　', small('空間'));
@@ -407,6 +445,7 @@ const panel = createPanel(state, penParams, {
   onChange: () => {
     engine.setVolume(state.sound.volume);
     applyLook();
+    renderHud();
     renderToggles();
   },
   undo,
@@ -421,7 +460,9 @@ const panel = createPanel(state, penParams, {
 window.addEventListener('keydown', (ev) => {
   if (ev.target instanceof HTMLInputElement || ev.metaKey || ev.ctrlKey) return;
   const k = ev.key.toLowerCase();
-  if (k === 'p') {
+  const n = Number.parseInt(k, 10);
+  if (n >= 1 && n <= SPECIES.length) state.species.kind = n - 1;
+  else if (k === 'p') {
     ui.palette = (ui.palette + 1) % PALETTES.length;
     ui.color = 0;
     applyLook();
@@ -456,24 +497,24 @@ renderer.setAnimationLoop((now: number) => {
   const dt = Math.min(100, now - prev);
   prev = now;
   stepDrawing();
-  for (const v of views) {
-    const p = v.plant;
-    if (p?.alive) {
-      const events = p.step(dt);
-      if (state.sound.enabled) {
-        for (const e of events) {
-          // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
-          engine.onGrowth({
-            kind: e.kind,
-            x: Math.min(1, Math.max(0, (e.at.x + 1.5) / 3)),
-            y: Math.min(1, Math.max(0, 0.5 - e.at.y / 3)),
-            depth: e.depth,
-            age: e.age,
-          });
-        }
-      }
+  const sound = (events: Growth3DEvent[]) => {
+    if (!state.sound.enabled) return;
+    for (const e of events) {
+      // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
+      engine.onGrowth({
+        kind: e.kind,
+        x: Math.min(1, Math.max(0, (e.at.x + 1.5) / 3)),
+        y: Math.min(1, Math.max(0, 0.5 - e.at.y / 3)),
+        depth: e.depth,
+        age: e.age,
+      });
     }
-    v.sync(now);
+  };
+  for (const it of items) {
+    const p = it.view.plant;
+    if (p?.alive) sound(p.step(dt));
+    it.view.sync(now);
+    if (it.grower?.alive) sound(it.grower.step(now));
   }
   // 畫畫時、剛轉過鏡頭的 3 秒內不自轉
   controls.autoRotate = state.view.autoRotate && !drawing && now - lastInteract > 3000;

@@ -1,17 +1,35 @@
 import type { PenParams } from '../../src/brushes/pen';
 import type { Growth3DParams } from '../../src/growth/branching3d';
-import { button, Dock, Panel, slider, type Thumb, thumbs, toggle } from '../../src/ui/panels';
+import {
+  button,
+  Dock,
+  Panel,
+  slider,
+  type Thumb,
+  thumbs,
+  tiles,
+  toggle,
+} from '../../src/ui/panels';
 import type { LeafStyle, StemStyle } from './plantView';
 
 export type State = {
   growth: Growth3DParams;
   grow: { enabled: boolean };
+  /** kind 是 SPECIES 的索引 */
+  species: { kind: number; useSwatch: boolean; density: number; height: number };
   leaf: LeafStyle;
   stem: StemStyle;
   view: { autoRotate: boolean; rotateSpeed: number; fog: number; shadow: number };
   sound: { enabled: boolean; volume: number };
   bg: { choice: string };
 };
+
+export const SPECIES = [
+  { name: '押花樹', sub: '1', note: '分枝 + 真實葉片照片' },
+  { name: '草', sub: '2', note: '一叢細長草葉，隨風晃' },
+  { name: '曼珠沙華', sub: '3', note: '無葉直莖，頂端一圈紅花，花瓣後捲、花絲上翹' },
+  { name: '紫羅蘭', sub: '4', note: '下半部披針葉，上半部花穗由下往上開' },
+];
 
 export type Actions = {
   onChange(): void;
@@ -27,6 +45,22 @@ export type Actions = {
 /** 卡片：葉、長、鏡（預設開）；景、尖、聲（收在圓鈕）。 */
 export function createPanel(s: State, pen: PenParams, actions: Actions) {
   const changed = () => actions.onChange();
+
+  // ---------- 種 ----------
+  const speciesPanel = new Panel({ id: 's4-species', title: '種', sub: '1–4', x: 16, y: 110 });
+  tiles(
+    speciesPanel,
+    SPECIES.map((sp) => ({ label: sp.name, sub: sp.sub, title: sp.note })),
+    (i) => s.species.kind === i,
+    (i) => {
+      s.species.kind = i;
+      speciesPanel.refresh();
+      changed();
+    },
+  );
+  toggle(speciesPanel, '用色票的顏色', s.species, 'useSwatch', changed);
+  slider(speciesPanel, '密度', s.species, 'density', 0.2, 3, 0.05, changed);
+  slider(speciesPanel, '高度', s.species, 'height', 0.3, 2.5, 0.05, changed);
 
   // ---------- 葉 ----------
   const leafPanel = new Panel({
@@ -118,7 +152,7 @@ export function createPanel(s: State, pen: PenParams, actions: Actions) {
   toggle(soundPanel, '分枝時發聲', s.sound, 'enabled', changed);
   slider(soundPanel, '音量', s.sound, 'volume', 0, 1, 0.01, changed);
 
-  const panels = [leafPanel, growPanel, viewPanel, bgPanel, penPanel, soundPanel];
+  const panels = [speciesPanel, leafPanel, growPanel, viewPanel, bgPanel, penPanel, soundPanel];
   const dock = new Dock({ left: 16, top: 58 });
   for (const panel of panels) dock.add(panel);
   dock.action('復原', 'Z', () => actions.undo());
