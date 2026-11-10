@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { loopBars, loopsNear, tempoChoices } from './tempo';
+import { loopBars, loopEndSec, loopsNear, tempoChoices } from './tempo';
 
 const kits = [104, 104, 100, 86, 86, 119, 106, 120, 118].map((bpm, i) => ({ id: `k${i}`, bpm }));
 const percs = [100, 100, 104, 113, 70, 120, 118].map((bpm, i) => ({ id: `p${i}`, bpm }));
@@ -21,4 +21,11 @@ test('loop 的小節數', () => {
   expect(loopBars(4.8, 100)).toBe(2);
   expect(loopBars(2.4, 100)).toBe(1);
   expect(loopBars(22.33, 86)).toBe(8);
+});
+
+test('循環終點：整數小節，但不能超過音檔長度（解碼後可能短幾十微秒）', () => {
+  expect(loopEndSec(4.06777, 118)).toBeCloseTo(4.06777, 6);
+  expect(loopEndSec(4.06777, 118)).toBeLessThanOrEqual(4.06777);
+  expect(loopEndSec(9.3, 104)).toBeCloseTo((4 * 240) / 104, 6);
+  expect(loopEndSec(16.1344375, 119)).toBeLessThanOrEqual(16.1344375);
 });

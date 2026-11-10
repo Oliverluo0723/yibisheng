@@ -19,3 +19,11 @@ export function tempoChoices(
 export function loopBars(durationSec: number, bpm: number): number {
   return Math.max(1, Math.round((durationSec * bpm) / 240));
 }
+
+/**
+ * 循環終點（音檔裡的秒數）：整數小節，但不超過音檔長度。
+ * mp3 解碼後可能比理論長度短幾十微秒，超過的話 Tone 會丟 RangeError。
+ */
+export function loopEndSec(durationSec: number, bpm: number): number {
+  return Math.min((loopBars(durationSec, bpm) * 240) / bpm, durationSec);
+}

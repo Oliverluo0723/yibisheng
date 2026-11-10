@@ -1,5 +1,5 @@
 import * as Tone from 'tone';
-import { loopBars, loopsNear } from '../../theory/tempo';
+import { loopEndSec, loopsNear } from '../../theory/tempo';
 import type { Bus } from '../audio/bus';
 import type { Clock } from '../audio/clock';
 import type { Loader } from '../audio/loader';
@@ -113,12 +113,11 @@ export class Drums extends LayerBase implements DrumLayer {
     if (!pick || !buf) return;
     const inc = l.decks[(l.active + 1) % 2] as Deck;
     const out = l.decks[l.active] as Deck;
-    const bars = loopBars(buf.duration, pick.bpm);
     if (inc.player.state === 'started') inc.player.stop(time);
     inc.player.buffer = buf;
     inc.player.playbackRate = this.bpm / pick.bpm;
     inc.player.loopStart = 0;
-    inc.player.loopEnd = (bars * 240) / pick.bpm;
+    inc.player.loopEnd = loopEndSec(buf.duration, pick.bpm);
     inc.gain.gain.setValueAtTime(0, time);
     inc.gain.gain.linearRampToValueAtTime(
       Tone.dbToGain(sampleById(pick.id)?.gainDb ?? 0),
