@@ -52,6 +52,7 @@ body.dark {
 .ui-title {
   font-size: 17px;
   letter-spacing: 0.35em;
+  white-space: nowrap;
 }
 .ui-sub {
   font-size: 10px;

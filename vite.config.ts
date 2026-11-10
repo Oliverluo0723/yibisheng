@@ -9,6 +9,7 @@ export default defineConfig({
         main: 'index.html',
         exp01: 'experiments/01-growth-branch/index.html',
         exp02: 'experiments/02-brushes/index.html',
+        exp03: 'experiments/03-depth/index.html',
       },
     },
   },
