@@ -16,7 +16,8 @@
     "@mediapipe/tasks-vision": "^1.2.2",
     "lil-gui": "^0.21.0",
     "p5": "^2.3.4",
-    "three": "^0.187.0"
+    "three": "^0.187.0",
+    "tone": "^15.1.22"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
