@@ -21,13 +21,13 @@ export type BotanicaParams = {
 export const defaultBotanicaParams: BotanicaParams = {
   key: 'C',
   randomness: 0.7,
-  bed: { enabled: true, volume: 0.35 },
-  bloom: { enabled: true, volume: 0.8 },
+  bed: { enabled: true, volume: 0.25 },
+  bloom: { enabled: true, volume: 0.7 },
   pad: { enabled: true, volume: 0.8 },
-  grains: { enabled: true, volume: 0.7 },
+  grains: { enabled: true, volume: 0.9 },
   drips: { enabled: true, volume: 0.6 },
-  drums: { enabled: true, volume: 0.6 },
-  piano: { enabled: true, volume: 0.6 },
+  drums: { enabled: true, volume: 0.5 },
+  piano: { enabled: true, volume: 0.5 },
 };
 
 /** 深拷貝一份預設值（巢狀物件不共用）。 */

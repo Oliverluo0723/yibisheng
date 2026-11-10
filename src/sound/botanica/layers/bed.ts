@@ -11,10 +11,10 @@ type Slot = { player: Tone.Player; gain: Tone.Gain; id: string | null };
 
 /** 底：兩段環境錄音交叉淡入淡出，每 40–90 秒換一段；偶爾淡進一段雨。全部過 4 kHz 低通，像窗外。 */
 export class Bed extends LayerBase implements BedLayer {
-  private readonly filter = new Tone.Filter(4000, 'lowpass');
+  private readonly filter = new Tone.Filter(2500, 'lowpass');
   private readonly slots: [Slot, Slot];
   private readonly rain = new Tone.Player({ fadeIn: 4, fadeOut: 4 });
-  private readonly rainGain = new Tone.Gain(Tone.dbToGain(-12));
+  private readonly rainGain = new Tone.Gain(Tone.dbToGain(-18));
   private active = 0;
   private started = false;
   private timers: number[] = [];

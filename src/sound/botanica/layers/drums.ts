@@ -82,7 +82,7 @@ export class Drums extends LayerBase implements DrumLayer {
     p.level = perc;
     k.level = kit;
     this.filter.frequency.rampTo(lowpassHz, 1);
-    for (const l of this.lanes) l.gain.gain.rampTo(l.level * 0.7, 1);
+    for (const l of this.lanes) l.gain.gain.rampTo(l.level * 0.5, 1);
   }
 
   /** 每個小節線：該開的開、該換的換、該停的停 */

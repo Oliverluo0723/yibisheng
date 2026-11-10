@@ -37,7 +37,8 @@ export class Pad extends LayerBase implements PadLayer {
     this.panner.connect(this.sendLevel);
     this.sendLevel.connect(this.wet);
     for (let i = 0; i < VOICES; i++) {
-      const player = new Tone.GrainPlayer({ grainSize: 0.25, overlap: 0.12, loop: true });
+      // 顆粒大一點、疊多一點，循環的持續音比較平滑、不會有 4 Hz 的抖
+      const player = new Tone.GrainPlayer({ grainSize: 0.4, overlap: 0.25, loop: true });
       player.loopStart = LOOP_START;
       player.loopEnd = LOOP_END;
       const env = new Tone.Gain(0);
@@ -50,12 +51,13 @@ export class Pad extends LayerBase implements PadLayer {
     if (!this.isOn || !this.loader.ready('ostr')) return;
     const notes = this.loadedNotes();
     if (notes.length === 0) return;
+    const gainDb = samplesByRole('ostr')[0]?.gainDb ?? 0;
     const now = Tone.now();
     const t0 = now + 0.03;
     this.filter.frequency.rampTo(o.lowpassHz, 0.5);
     this.panner.pan.rampTo(Math.max(-1, Math.min(1, o.pan)), 0.5);
     this.sendLevel.gain.rampTo(o.reverbSend, 0.5);
-    const peak = (o.velocity * 0.8) / Math.max(1, Math.sqrt(midis.length));
+    const peak = (o.velocity * 0.8 * Tone.dbToGain(gainDb)) / Math.max(1, Math.sqrt(midis.length));
     for (const midi of midis) {
       const near = notes.reduce((a, b) =>
         Math.abs(b.midi - midi) < Math.abs(a.midi - midi) ? b : a,

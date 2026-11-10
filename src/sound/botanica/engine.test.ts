@@ -312,7 +312,7 @@ test('每種植物不同的聲音：丁香一串小音符、曼珠沙華低音�
   for (const n of f.phrases.at(-1) ?? []) expect(n.midi).toBeGreaterThanOrEqual(72);
   f.tick(200);
   e.onGrowth(ev(1), '丁香');
-  expect(f.calls.at(-1)).toMatch(/grain bell-\d+ .* db=-12/);
+  expect(f.calls.at(-1)).toMatch(/grain bell-\d+ .* db=-9/);
 
   f.calls.length = 0;
   f.tick(3000);

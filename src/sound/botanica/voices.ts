@@ -73,7 +73,7 @@ export const VOICES: Record<VoiceName, Voice> = {
       ['cluster', 3],
       ['padHigh', 1],
     ],
-    grains: { roles: ['bell', 'bell', 'glitch'], gainDb: -12, density: 1.5, bias: 1 },
+    grains: { roles: ['bell', 'bell', 'glitch'], gainDb: -9, density: 1.5, bias: 1 },
     drums: 0.6,
     piano: 1,
   },

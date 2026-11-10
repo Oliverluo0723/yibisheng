@@ -78,7 +78,8 @@ const loops = (role: SampleRole, list: Loop[]): Sample[] =>
     file: `${role}-${pad(i + 1)}.mp3`,
     role,
     sourceKey: 'C',
-    gainDb: 0,
+    // 鼓組 loop 平均約 −20 dB、打擊約 −34，壓齊
+    gainDb: role === 'kit' ? -8 : 0,
     source: path,
     bpm,
   }));
@@ -144,7 +145,8 @@ const OSTR: Sample[] = ['C1', 'F1', 'C2', 'F2', 'C3', 'F3', 'C4', 'F4', 'C5', 'F
     file: `ostr-${name.toLowerCase()}.mp3`,
     role: 'ostr' as const,
     sourceKey: 'C' as KeyName,
-    gainDb: 0,
+    // FL 的弦樂單音正規化到 0 dB（平均 −10），比其他素材大二、三十 dB
+    gainDb: -9,
     source: `${OSTR_DIR}/OSTR ${name}.wav`,
     midi: 12 * (Number(name[1]) + 1) + (name[0] === 'C' ? 0 : 5),
   }),
@@ -154,12 +156,14 @@ export const SAMPLES: readonly Sample[] = [
   ...named(
     'bed',
     [1, 2, 3, 4].map((n) => `${V1}/fx/foley${n}.wav`),
-    { gainDb: -6, trimSec: 60 },
+    { gainDb: -14, trimSec: 60 },
   ),
   ...named('bed', [`${V1}/oneshots/raindrops.wav`]).map((s) => ({
     ...s,
     id: 'bed-05',
     file: 'bed-05.mp3',
+    // 雨聲比其他環境錄音大 8 dB
+    gainDb: -22,
   })),
   ...series('rain', 3, (n) => `${V1}/fx/rain synth ${pad(n)}.wav`, C),
   ...series(
