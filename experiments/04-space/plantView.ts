@@ -69,6 +69,26 @@ const UNIT_CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(
 const STEM_MATERIAL = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0 });
 const Y = new THREE.Vector3(0, 1, 0);
 
+// ---------- 枯（草稿）----------
+/** 葉子乾掉往這個褐色走、枝往灰褐走 */
+const LEAF_DRY = new THREE.Color('#9a7342');
+const STEM_DRY = new THREE.Color('#6e6258');
+/** 乾燥分幾階（材質會依階快取，階數少一點） */
+const DRY_STEPS = 6;
+/** 斷枝落下的重力（世界單位 / s²），比真實慢一點像慢動作 */
+const GRAVITY = 2.2;
+/** 葉子飄落的終端速度（世界單位 / s） */
+const LEAF_FALL = 0.32;
+/** 0..1 的固定亂數（同一個 id 永遠同一個值），決定每片葉、每條枝什麼時候掉 */
+const hash01 = (n: number) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+const randomHorizontal = () => {
+  const a = Math.random() * Math.PI * 2;
+  return new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+};
+
 const leafGeoCache = new Map<number, THREE.BufferGeometry>();
 /** 葉片：底部在原點、往 +Y 長 1，沿長邊彎、兩側微微捲起 */
 function leafGeometry(curl: number): THREE.BufferGeometry {
@@ -91,8 +111,8 @@ const matCache = new Map<
   string,
   { mat: THREE.MeshStandardMaterial; depth: THREE.MeshDepthMaterial }
 >();
-function leafMaterial(tex: LeafTex, index: number, color: THREE.Color, tint: number) {
-  const tinted = new THREE.Color(1, 1, 1).lerp(color, tint);
+function leafMaterial(tex: LeafTex, index: number, color: THREE.Color, tint: number, dry = 0) {
+  const tinted = new THREE.Color(1, 1, 1).lerp(color, tint).lerp(LEAF_DRY, (dry / DRY_STEPS) * 0.9);
   const key = `${index}|${tinted.getHexString()}`;
   const hit = matCache.get(key);
   if (hit) return hit;
@@ -116,6 +136,43 @@ function leafMaterial(tex: LeafTex, index: number, color: THREE.Color, tint: num
 
 const v = (p: V3) => new THREE.Vector3(p.x, p.y, p.z);
 
+type LeafState = {
+  mesh: THREE.Mesh;
+  born: number;
+  full: THREE.Vector3;
+  tex: LeafTex;
+  /** 長在枝上時的位置與朝向（拉回去時復原用） */
+  home: { pos: THREE.Vector3; quat: THREE.Quaternion };
+  /** 枯到幾成時脫離枝條 */
+  detachAt: number;
+  phase: 'on' | 'fall' | 'down';
+  vel: THREE.Vector3;
+  /** 翻轉：軸 × 角速度 */
+  spin: THREE.Vector3;
+  sway: number;
+  /** 目前材質的乾燥階 0..DRY_STEPS */
+  dry: number;
+};
+
+/** 植物長出來的一段枝（原始座標，掉下來時用它們算新位置） */
+type PlantSeg = { a: V3; b: V3; radius: number; index: number };
+
+/** 同一支芽長出來的所有段 = 一條枝，斷的時候整條一起 */
+type Chain = {
+  tip: number;
+  segs: PlantSeg[];
+  /** 斷點（這支芽出生的位置） */
+  base: THREE.Vector3;
+  breakAt: number;
+  phase: 'on' | 'fall' | 'down';
+  pos: THREE.Vector3;
+  quat: THREE.Quaternion;
+  vel: THREE.Vector3;
+  axis: THREE.Vector3;
+  angVel: number;
+  angle: number;
+};
+
 /**
  * 一株植物在場景裡的樣子：主莖 + 枝條（InstancedMesh 細圓柱）+ 一片片葉子。
  * 主莖在畫的時候就一段段加；放開後接上 Plant3D，之後每幀 sync()。
@@ -127,10 +184,19 @@ export class PlantView {
   private stemCount = 0;
   private segDone = 0;
   private leafDone = 0;
-  private readonly leaves: { mesh: THREE.Mesh; born: number; full: THREE.Vector3 }[] = [];
+  private readonly leaves: LeafState[] = [];
   private readonly m = new THREE.Matrix4();
   private readonly q = new THREE.Quaternion();
   plant?: Plant3D;
+
+  /** 枯 0..1（草稿：面板滑桿直接拉）。葉子先黃再落，細枝先斷，主幹留到最後 */
+  wither = 0;
+  /** 地面的 y，掉下來的東西停在這 */
+  groundY = -1.25;
+  private readonly segs: PlantSeg[] = [];
+  private readonly chains = new Map<number, Chain>();
+  private colorW = 0;
+  private lastSync = 0;
 
   constructor(
     readonly color: THREE.Color,
@@ -186,13 +252,22 @@ export class PlantView {
     );
   }
 
-  /** 每幀：把植物新長的枝和葉加進場景，葉子從 0 慢慢展開 */
+  /** 每幀：把植物新長的枝和葉加進場景，葉子從 0 慢慢展開；再走一步「枯」 */
   sync(nowMs: number): void {
+    const dt = this.lastSync ? Math.min(0.1, (nowMs - this.lastSync) / 1000) : 0;
+    this.lastSync = nowMs;
     const p = this.plant;
     if (p) {
       for (; this.segDone < p.segments.length; this.segDone++) {
         const s = p.segments[this.segDone];
-        if (s) this.addStem(s.a, s.b, this.radiusFor(s.depth));
+        if (!s) continue;
+        const radius = this.radiusFor(s.depth);
+        const index = this.stemCount;
+        this.addStem(s.a, s.b, radius);
+        if (this.stemCount === index) continue;
+        const seg: PlantSeg = { a: s.a, b: s.b, radius, index };
+        this.segs.push(seg);
+        this.chain(s.tip, s.depth, s.a).segs.push(seg);
       }
       for (; this.leafDone < p.leaves.length; this.leafDone++) {
         const leaf = p.leaves[this.leafDone];
@@ -215,6 +290,160 @@ export class PlantView {
       if (k >= 1 && l.mesh.scale.equals(l.full)) continue;
       const e = 1 - (1 - k) ** 3;
       l.mesh.scale.copy(l.full).multiplyScalar(Math.max(0.001, e));
+    }
+    this.stepWither(dt, nowMs);
+  }
+
+  /** 同一支芽的段和葉算一條枝；第一次看到這支芽時決定它在枯到幾成時斷 */
+  private chain(tip: number, depth: number, at: V3): Chain {
+    const hit = this.chains.get(tip);
+    if (hit) return hit;
+    const maxDepth = Math.max(1, this.plant?.params.maxDepth ?? 3);
+    // 越深（越細、越末梢）越早斷：最深 0.5 左右，第 0 層要拉到快滿才斷
+    const breakAt = Math.min(0.98, 0.5 + 0.42 * (1 - depth / maxDepth) + hash01(tip + 0.5) * 0.08);
+    const c: Chain = {
+      tip,
+      segs: [],
+      base: v(at),
+      breakAt,
+      phase: 'on',
+      pos: new THREE.Vector3(),
+      quat: new THREE.Quaternion(),
+      vel: new THREE.Vector3(),
+      axis: randomHorizontal(),
+      angVel: 0,
+      angle: 0,
+    };
+    this.chains.set(tip, c);
+    return c;
+  }
+
+  private stepWither(dt: number, nowMs: number): void {
+    const w = this.wither;
+    if (Math.abs(w - this.colorW) > 0.004) {
+      this.colorW = w;
+      const c = this.color.clone().lerp(STEM_DRY, 0.75 * w);
+      for (const s of this.segs) this.stems.setColorAt(s.index, c);
+      if (this.stems.instanceColor) this.stems.instanceColor.needsUpdate = true;
+    }
+    let moved = false;
+    for (const c of this.chains.values()) {
+      if (c.phase === 'on') {
+        if (w >= c.breakAt) this.breakChain(c);
+      } else if (w < c.breakAt) {
+        this.restoreChain(c);
+        moved = true;
+      }
+      if (c.phase === 'fall') {
+        this.stepChainFall(c, dt);
+        moved = true;
+      }
+    }
+    if (moved) this.stems.instanceMatrix.needsUpdate = true;
+    for (const l of this.leaves) {
+      if (l.phase === 'on') {
+        if (w >= l.detachAt) this.dropLeaf(l);
+      } else if (w < l.detachAt) {
+        this.restoreLeaf(l);
+      }
+      const dry =
+        l.phase === 'on'
+          ? Math.round(Math.min(1, Math.max(0, (w - (l.detachAt - 0.3)) / 0.3)) * DRY_STEPS)
+          : DRY_STEPS;
+      if (dry !== l.dry) {
+        l.dry = dry;
+        l.mesh.material = leafMaterial(
+          l.tex,
+          this.leafTex.indexOf(l.tex),
+          this.color,
+          this.leafStyle.tint,
+          dry,
+        ).mat;
+      }
+      if (l.phase === 'fall') this.stepLeafFall(l, dt, nowMs);
+    }
+  }
+
+  private breakChain(c: Chain): void {
+    c.phase = 'fall';
+    c.pos.set(0, 0, 0);
+    c.quat.identity();
+    c.vel.set((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.5) * 0.15);
+    c.axis = randomHorizontal();
+    c.angVel = (0.8 + Math.random() * 1.4) * (Math.random() < 0.5 ? -1 : 1);
+    c.angle = 0;
+  }
+
+  private restoreChain(c: Chain): void {
+    c.phase = 'on';
+    for (const s of c.segs) this.setCylinder(this.stems, s.index, s.a, s.b, s.radius);
+  }
+
+  /** 整條枝當剛體：繞斷點翻滾著往下掉，最低點碰到地就停 */
+  private stepChainFall(c: Chain, dt: number): void {
+    c.vel.y -= GRAVITY * dt;
+    c.pos.addScaledVector(c.vel, dt);
+    c.angle += c.angVel * dt;
+    let minY = this.placeChain(c);
+    if (minY < this.groundY) {
+      c.pos.y += this.groundY - minY;
+      minY = this.placeChain(c);
+      c.phase = 'down';
+    }
+  }
+
+  private placeChain(c: Chain): number {
+    c.quat.setFromAxisAngle(c.axis, c.angle);
+    // 以斷點為軸心轉，再平移
+    const M = new THREE.Matrix4()
+      .makeTranslation(c.base.x + c.pos.x, c.base.y + c.pos.y, c.base.z + c.pos.z)
+      .multiply(new THREE.Matrix4().makeRotationFromQuaternion(c.quat))
+      .multiply(new THREE.Matrix4().makeTranslation(-c.base.x, -c.base.y, -c.base.z));
+    let minY = Number.POSITIVE_INFINITY;
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    for (const s of c.segs) {
+      a.set(s.a.x, s.a.y, s.a.z).applyMatrix4(M);
+      b.set(s.b.x, s.b.y, s.b.z).applyMatrix4(M);
+      minY = Math.min(minY, a.y, b.y);
+      this.setCylinder(this.stems, s.index, a, b, s.radius);
+    }
+    return minY;
+  }
+
+  private dropLeaf(l: LeafState): void {
+    l.phase = 'fall';
+    l.vel.set((Math.random() - 0.5) * 0.12, 0, (Math.random() - 0.5) * 0.12);
+    l.spin.copy(randomHorizontal()).multiplyScalar(1.5 + Math.random() * 2.5);
+    l.sway = Math.random() * Math.PI * 2;
+  }
+
+  private restoreLeaf(l: LeafState): void {
+    l.phase = 'on';
+    l.mesh.position.copy(l.home.pos);
+    l.mesh.quaternion.copy(l.home.quat);
+  }
+
+  /** 葉子：慢慢往下飄，左右擺、翻轉，落地就躺平 */
+  private stepLeafFall(l: LeafState, dt: number, nowMs: number): void {
+    const t = nowMs / 1000;
+    const m = l.mesh;
+    m.position.y -= LEAF_FALL * dt;
+    m.position.x += (l.vel.x + Math.sin(t * 2.3 + l.sway) * 0.18) * dt;
+    m.position.z += (l.vel.z + Math.cos(t * 1.7 + l.sway) * 0.18) * dt;
+    const dq = new THREE.Quaternion().setFromAxisAngle(
+      l.spin.clone().normalize(),
+      l.spin.length() * dt,
+    );
+    m.quaternion.premultiply(dq);
+    if (m.position.y <= this.groundY + 0.01) {
+      l.phase = 'down';
+      m.position.y = this.groundY + 0.003 + Math.random() * 0.006;
+      // 躺平：葉面朝上、葉尖隨便指一個方向
+      const y = randomHorizontal();
+      const z = new THREE.Vector3(0, 1, 0);
+      const x = new THREE.Vector3().crossVectors(y, z);
+      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
     }
   }
 
@@ -245,7 +474,22 @@ export class PlantView {
     const full = new THREE.Vector3(L * tex.aspect, L, L);
     mesh.scale.setScalar(0.001);
     this.group.add(mesh);
-    this.leaves.push({ mesh, born: nowMs, full });
+    const chain = this.chain(leaf.tip, leaf.depth, leaf.at);
+    // 葉子自己會掉（0.08..0.63），枝斷了也一起掉，取早的
+    const fallAt = 0.08 + hash01(this.leaves.length + 0.25) * 0.55;
+    this.leaves.push({
+      mesh,
+      born: nowMs,
+      full,
+      tex,
+      home: { pos: mesh.position.clone(), quat: mesh.quaternion.clone() },
+      detachAt: Math.min(fallAt, chain.breakAt),
+      phase: 'on',
+      vel: new THREE.Vector3(),
+      spin: new THREE.Vector3(),
+      sway: 0,
+      dry: 0,
+    });
   }
 
   private pickPool(): LeafTex[] {

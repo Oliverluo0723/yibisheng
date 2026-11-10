@@ -25,6 +25,8 @@ export type State = {
   species: { kind: number; useSwatch: boolean; density: number; height: number };
   leaf: LeafStyle;
   stem: StemStyle;
+  /** 枯 0..1（草稿：先用滑桿手動拉，之後要接熱度） */
+  wither: number;
   view: { autoRotate: boolean; rotateSpeed: number; fog: number; shadow: number };
   sound: {
     enabled: boolean;
@@ -186,6 +188,7 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
     parent.append(el('div', 'ui-section', `${sp?.name ?? ''}　${sp?.note ?? ''}`));
     toggle(panel, '放開後會長（G）', s.grow, 'enabled', changed, parent);
     if (s.species.kind === 0) {
+      slider(panel, '枯（草稿，拉著看）', s, 'wither', 0, 1, 0.005, changed, parent);
       slider(panel, '葉大小', s.leaf, 'size', 0.03, 0.4, 0.005, changed, parent);
       slider(panel, '每幾段一葉', s.growth, 'leafEvery', 1, 8, 1, changed, parent);
       slider(panel, '往裡外長', s.growth, 'outOfPlane', 0, 1, 0.01, changed, parent);

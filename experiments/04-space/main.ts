@@ -41,6 +41,7 @@ const state: State = {
   species: { kind: 0, useSwatch: false, density: 1, height: 1 },
   leaf: { ...defaultLeafStyle },
   stem: { ...defaultStemStyle },
+  wither: 0,
   view: { autoRotate: true, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
   sound: { enabled: true, volume: 0.8, engine: 'botanica', botanica: freshBotanicaParams() },
   bg: { choice: BG_PAPER },
@@ -115,10 +116,11 @@ sun.shadow.camera.bottom = -3;
 sun.shadow.bias = -0.0005;
 scene.add(sun);
 
+const GROUND_Y = -1.25;
 const groundMat = new THREE.ShadowMaterial({ opacity: state.view.shadow });
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), groundMat);
 ground.rotation.x = -Math.PI / 2;
-ground.position.y = -1.25;
+ground.position.y = GROUND_Y;
 ground.receiveShadow = true;
 scene.add(ground);
 
@@ -257,6 +259,7 @@ function beginDraw(x: number, y: number): boolean {
     (2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / window.innerHeight;
   const color = new THREE.Color(pickColor().hex);
   const view = new PlantView(color, leafTex, { ...state.leaf }, { ...state.stem });
+  view.groundY = GROUND_Y;
   scene.add(view.group);
   items.push({ view });
   const first = pen.reset(x, y);
@@ -677,6 +680,7 @@ renderer.setAnimationLoop((now: number) => {
   for (const it of items) {
     const p = it.view.plant;
     if (p?.alive) sound(p.step(dt), it.voice);
+    it.view.wither = state.wither;
     it.view.sync(now);
     if (it.grower?.alive) sound(it.grower.step(now), it.voice);
     // 長完那一刻通知聲音（草一直隨風晃、永遠 alive，不會觸發）

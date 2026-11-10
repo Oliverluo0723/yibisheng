@@ -45,7 +45,8 @@ export const defaultGrowth3DParams: Growth3DParams = {
   leafEvery: 2,
 };
 
-export type Segment3D = { a: V3; b: V3; depth: number; born: number };
+/** tip = 長出這段的芽的 id：同一支芽的段連成一條「枝」，枯掉時整條一起斷 */
+export type Segment3D = { a: V3; b: V3; depth: number; born: number; tip: number };
 
 export type Leaf3D = {
   at: V3;
@@ -55,6 +56,8 @@ export type Leaf3D = {
   roll: number;
   depth: number;
   born: number;
+  /** 長在哪支芽上（對應 Segment3D.tip） */
+  tip: number;
   /** 0.6..1.2 的大小變化 */
   size: number;
   /** 0..1，挑葉片圖用 */
@@ -188,7 +191,7 @@ export class Plant3D {
       t.pending += d;
       if (t.pending < p.segmentLength) continue;
 
-      this.segments.push({ a: t.node, b: t.pos, depth: t.depth, born: this.age_ });
+      this.segments.push({ a: t.node, b: t.pos, depth: t.depth, born: this.age_, tip: t.id });
       t.node = t.pos;
       t.pending = 0;
       t.segs++;
@@ -228,6 +231,7 @@ export class Plant3D {
       roll: t.roll,
       depth: t.depth,
       born: this.age_,
+      tip: t.id,
       size: 0.6 + this.rng() * 0.6,
       pick: this.rng(),
     };
