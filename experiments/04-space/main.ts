@@ -73,8 +73,8 @@ camera.position.copy(HOME);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
-// 左鍵留給畫畫；右鍵轉、中鍵 / 滾輪縮放
-controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+// 左鍵留給畫畫；旋轉改用鍵盤 E / Q（見 stepOrbit）；中鍵 / 滾輪縮放
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: null };
 controls.enableDamping = true;
 controls.enablePan = false;
 controls.minDistance = 1;
@@ -503,8 +503,40 @@ const panel = createUI(state, penParams, {
   openFile: (f) => void useFile(f),
 });
 
+// ---------- E / Q 旋轉 ----------
+/** 按住的旋轉鍵：+1 = E（順時針）、-1 = Q（逆時針） */
+const orbitKeys = new Set<string>();
+/** 每秒轉幾度 */
+const ORBIT_DEG_PER_SEC = 75;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 window.addEventListener('keydown', (ev) => {
   if (ev.target instanceof HTMLInputElement || ev.metaKey || ev.ctrlKey) return;
+  const k = ev.key.toLowerCase();
+  if (k === 'e' || k === 'q') {
+    orbitKeys.add(k);
+    ev.preventDefault();
+  }
+});
+window.addEventListener('keyup', (ev) => orbitKeys.delete(ev.key.toLowerCase()));
+window.addEventListener('blur', () => orbitKeys.clear());
+
+/**
+ * 從上往下看：E 讓植物順時針轉、Q 逆時針。
+ * 植物順時針轉 = 鏡頭繞注視點逆時針走（右手定則下繞 +Y 正方向轉）。
+ */
+function stepOrbit(dtMs: number, now: number) {
+  const dir = (orbitKeys.has('e') ? 1 : 0) - (orbitKeys.has('q') ? 1 : 0);
+  if (dir === 0) return;
+  const angle = THREE.MathUtils.degToRad(ORBIT_DEG_PER_SEC) * (dtMs / 1000) * dir;
+  const offset = camera.position.clone().sub(controls.target);
+  offset.applyAxisAngle(WORLD_UP, angle);
+  camera.position.copy(controls.target).add(offset);
+  lastInteract = now;
+}
+
+window.addEventListener('keydown', (ev) => {
+  if (ev.target instanceof HTMLInputElement || ev.metaKey || ev.ctrlKey) return;
+  if (ev.key.toLowerCase() === 'e' || ev.key.toLowerCase() === 'q') return;
   const k = ev.key.toLowerCase();
   const n = Number.parseInt(k, 10);
   if (n >= 1 && n <= SPECIES.length) state.species.kind = n - 1;
@@ -544,6 +576,7 @@ renderer.setAnimationLoop((now: number) => {
   const dt = Math.min(100, now - prev);
   prev = now;
   stepHand(now);
+  stepOrbit(dt, now);
   stepDrawing();
   const sound = (events: Growth3DEvent[]) => {
     if (!state.sound.enabled) return;
