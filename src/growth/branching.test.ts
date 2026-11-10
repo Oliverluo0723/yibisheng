@@ -52,6 +52,28 @@ test('respects maxTips', () => {
   expect(branches).toBeLessThanOrEqual(20 - 6); // 起始 6 芽 + 分岔 ≤ 20
 });
 
+test('growth is independent of how dt is chunked (fixed timestep)', () => {
+  const a = new BranchingPlant(stroke, defaultGrowthParams, 11);
+  const b = new BranchingPlant(stroke, defaultGrowthParams, 11);
+  for (let i = 0; i < 60; i++) a.step(50);
+  for (let i = 0; i < 120; i++) b.step(25);
+  expect(a.segments.length).toBeGreaterThan(0);
+  expect(a.segments).toEqual(b.segments);
+});
+
+test('segments are isotropic in pixel space when an aspect ratio is given', () => {
+  const aspect = 2; // 畫布寬是高的兩倍
+  const p = new BranchingPlant(stroke, { ...defaultGrowthParams, noise: 0 }, 5, aspect);
+  for (let i = 0; i < 60; i++) p.step(50);
+  expect(p.segments.length).toBeGreaterThan(10);
+  for (const s of p.segments) {
+    // 以畫布高為單位的像素長度
+    const len = Math.hypot((s.x2 - s.x1) * aspect, s.y2 - s.y1);
+    expect(len).toBeGreaterThan(defaultGrowthParams.segmentLength * 0.9);
+    expect(len).toBeLessThan(defaultGrowthParams.segmentLength * 1.5);
+  }
+});
+
 test('single-point stroke does not throw', () => {
   const p = new BranchingPlant(
     { id: 'one', startedAt: 0, points: [{ x: 0.5, y: 0.5, t: 0 }] },

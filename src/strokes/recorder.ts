@@ -18,6 +18,8 @@ export class StrokeRecorder {
   }
 
   begin(px: number, py: number, w: number, h: number, now: number): Stroke {
+    // 若上一筆沒收到 mouseReleased（例如中途切換視窗），先把它收起來，不要丟掉
+    if (this.active) this.end();
     this.active = {
       id: crypto.randomUUID(),
       startedAt: now,

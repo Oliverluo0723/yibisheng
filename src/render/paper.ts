@@ -28,10 +28,10 @@ export function drawPaper(g: p5.Graphics, palette: Palette, grainDots: number): 
   g.push();
   g.background(palette.paper);
   g.noStroke();
+  const c = g.color(palette.ink[1] ?? palette.paper);
+  const [r, gr, b] = [g.red(c), g.green(c), g.blue(c)];
   for (let i = 0; i < grainDots; i++) {
-    const c = g.color(palette.ink[1] ?? palette.paper);
-    c.setAlpha(10 + Math.random() * 14);
-    g.fill(c);
+    g.fill(r, gr, b, 10 + Math.random() * 14);
     g.circle(Math.random() * g.width, Math.random() * g.height, 0.6 + Math.random() * 1.2);
   }
   g.pop();

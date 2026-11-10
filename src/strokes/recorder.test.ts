@@ -33,6 +33,16 @@ test('current exposes the in-progress stroke and is null otherwise', () => {
   expect(r.current).toBeNull();
 });
 
+test('begin while a stroke is active finalizes the previous one instead of dropping it', () => {
+  const r = new StrokeRecorder();
+  const first = r.begin(1, 1, 10, 10, 0);
+  r.extend(5, 5, 10, 10, 16);
+  r.begin(2, 2, 10, 10, 100);
+  expect(r.strokes).toHaveLength(1);
+  expect(r.strokes[0]).toBe(first);
+  expect(r.current?.startedAt).toBe(100);
+});
+
 test('end returns the stroke and pushes it; extend without begin is null', () => {
   const r = new StrokeRecorder();
   expect(r.extend(1, 1, 10, 10, 0)).toBeNull();

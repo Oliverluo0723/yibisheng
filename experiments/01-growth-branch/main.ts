@@ -29,10 +29,14 @@ new p5((p: p5) => {
 
   const strokeColor = () => inkFor(defaultPalette, 0);
 
+  /** 重建（或重設大小）離屏圖層並鋪紙。舊圖層一定要 remove，否則每次縮放都會留下一張隱藏 canvas。 */
   function resetLayer() {
+    if (layer) layer.remove();
     layer = p.createGraphics(p.width, p.height);
     drawPaper(layer, defaultPalette, PAPER_GRAIN_DOTS);
   }
+
+  const aspect = () => p.width / p.height;
 
   function redrawAll() {
     resetLayer();
@@ -46,7 +50,7 @@ new p5((p: p5) => {
   }
 
   function addPlant(s: Stroke) {
-    const plant = new BranchingPlant(s, { ...state.growth }, hashString(s.id));
+    const plant = new BranchingPlant(s, { ...state.growth }, hashString(s.id), aspect());
     plants.push({ plant, drawn: 0 });
   }
 
@@ -104,6 +108,9 @@ new p5((p: p5) => {
       started = true;
       void engine.start().then(() => engine.setVolume(state.sound.volume));
     }
+    // 上一筆若因切換視窗等原因沒收到 mouseReleased，先讓它長出來，不要丟掉
+    const dangling = recorder.end();
+    if (dangling) addPlant(dangling);
     recorder.begin(p.mouseX, p.mouseY, p.width, p.height, p.millis());
   };
 
@@ -139,8 +146,13 @@ new p5((p: p5) => {
     p.image(layer, 0, 0);
   };
 
+  // 拖曳視窗邊緣時 resize 事件每幀都來；等停下來再重畫一次
+  let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   p.windowResized = () => {
-    p.resizeCanvas(p.windowWidth, p.windowHeight);
-    redrawAll();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      p.resizeCanvas(p.windowWidth, p.windowHeight);
+      redrawAll();
+    }, 150);
   };
 });
