@@ -165,7 +165,13 @@ export class PlantView {
     const from = v(a);
     const dir = v(b).sub(from);
     const length = dir.length();
-    if (length < 1e-6) return;
+    if (length < 1e-6) {
+      // 長度為零（芽剛長完一段）也一定要寫入矩陣：沒寫的那一格會是單位矩陣，
+      // 等於在世界中心（螢幕正中間）畫一根半徑 1 的大圓柱，看起來就是一直閃
+      this.m.makeScale(0, 0, 0).setPosition(from);
+      mesh.setMatrixAt(i, this.m);
+      return;
+    }
     this.q.setFromUnitVectors(Y, dir.normalize());
     this.m.compose(from, this.q, new THREE.Vector3(radius, length, radius));
     mesh.setMatrixAt(i, this.m);
