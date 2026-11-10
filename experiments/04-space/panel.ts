@@ -170,6 +170,8 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
       ['和弦：放開時綻放', 'bloom'],
       ['顆粒：分枝時', 'grains'],
       ['偶發：水滴、glitch', 'drips'],
+      ['鼓：畫得越熱鬧越近', 'drums'],
+      ['鋼琴：熱起來時隨手彈', 'piano'],
     ] as const) {
       section(panel, name, parent);
       toggle(panel, '開', b[key], 'enabled', changed, parent);
