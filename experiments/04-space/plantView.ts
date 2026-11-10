@@ -77,8 +77,18 @@ const STEM_DRY = new THREE.Color('#6e6258');
 const DRY_STEPS = 6;
 /** 斷枝落下的重力（世界單位 / s²），比真實慢一點像慢動作 */
 const GRAVITY = 2.2;
-/** 葉子飄落的終端速度（世界單位 / s） */
-const LEAF_FALL = 0.32;
+
+/** 落下的感覺：使用者可調 */
+export type FallStyle = {
+  /** 葉子飄落的終端速度（世界單位 / s） */
+  leafFall: number;
+  /** 斷枝翻滾的幅度（1 = 草稿的樣子） */
+  tumble: number;
+};
+export const defaultFallStyle: FallStyle = { leafFall: 0.32, tumble: 1 };
+
+/** sync() 回報的枯事件：leaf = 落地那一刻、branch = 斷的那一刻 */
+export type WitherViewEvent = { kind: 'leaf' | 'branch'; at: V3; depth: number };
 /** 0..1 的固定亂數（同一個 id 永遠同一個值），決定每片葉、每條枝什麼時候掉 */
 const hash01 = (n: number) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
@@ -145,6 +155,7 @@ type LeafState = {
   home: { pos: THREE.Vector3; quat: THREE.Quaternion };
   /** 枯到幾成時脫離枝條 */
   detachAt: number;
+  depth: number;
   phase: 'on' | 'fall' | 'down';
   vel: THREE.Vector3;
   /** 翻轉：軸 × 角速度 */
@@ -160,6 +171,7 @@ type PlantSeg = { a: V3; b: V3; radius: number; index: number };
 /** 同一支芽長出來的所有段 = 一條枝，斷的時候整條一起 */
 type Chain = {
   tip: number;
+  depth: number;
   segs: PlantSeg[];
   /** 斷點（這支芽出生的位置） */
   base: THREE.Vector3;
@@ -193,6 +205,8 @@ export class PlantView {
   wither = 0;
   /** 地面的 y，掉下來的東西停在這 */
   groundY = -1.25;
+  fall: FallStyle = { ...defaultFallStyle };
+  private events: WitherViewEvent[] = [];
   private readonly segs: PlantSeg[] = [];
   private readonly chains = new Map<number, Chain>();
   private colorW = 0;
@@ -252,8 +266,8 @@ export class PlantView {
     );
   }
 
-  /** 每幀：把植物新長的枝和葉加進場景，葉子從 0 慢慢展開；再走一步「枯」 */
-  sync(nowMs: number): void {
+  /** 每幀：把植物新長的枝和葉加進場景，葉子從 0 慢慢展開；再走一步「枯」。回傳這一幀的枯事件 */
+  sync(nowMs: number): WitherViewEvent[] {
     const dt = this.lastSync ? Math.min(0.1, (nowMs - this.lastSync) / 1000) : 0;
     this.lastSync = nowMs;
     const p = this.plant;
@@ -292,6 +306,9 @@ export class PlantView {
       l.mesh.scale.copy(l.full).multiplyScalar(Math.max(0.001, e));
     }
     this.stepWither(dt, nowMs);
+    const out = this.events;
+    this.events = [];
+    return out;
   }
 
   /** 同一支芽的段和葉算一條枝；第一次看到這支芽時決定它在枯到幾成時斷 */
@@ -303,6 +320,7 @@ export class PlantView {
     const breakAt = Math.min(0.98, 0.5 + 0.42 * (1 - depth / maxDepth) + hash01(tip + 0.5) * 0.08);
     const c: Chain = {
       tip,
+      depth,
       segs: [],
       base: v(at),
       breakAt,
@@ -323,7 +341,8 @@ export class PlantView {
     if (Math.abs(w - this.colorW) > 0.004) {
       this.colorW = w;
       const c = this.color.clone().lerp(STEM_DRY, 0.75 * w);
-      for (const s of this.segs) this.stems.setColorAt(s.index, c);
+      // 植物長的段和使用者畫的主幹一起變色
+      for (let i = 0; i < this.stemCount; i++) this.stems.setColorAt(i, c);
       if (this.stems.instanceColor) this.stems.instanceColor.needsUpdate = true;
     }
     let moved = false;
@@ -370,8 +389,13 @@ export class PlantView {
     c.quat.identity();
     c.vel.set((Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.5) * 0.15);
     c.axis = randomHorizontal();
-    c.angVel = (0.8 + Math.random() * 1.4) * (Math.random() < 0.5 ? -1 : 1);
+    c.angVel = (0.8 + Math.random() * 1.4) * this.fall.tumble * (Math.random() < 0.5 ? -1 : 1);
     c.angle = 0;
+    this.events.push({
+      kind: 'branch',
+      at: { x: c.base.x, y: c.base.y, z: c.base.z },
+      depth: c.depth,
+    });
   }
 
   private restoreChain(c: Chain): void {
@@ -428,7 +452,7 @@ export class PlantView {
   private stepLeafFall(l: LeafState, dt: number, nowMs: number): void {
     const t = nowMs / 1000;
     const m = l.mesh;
-    m.position.y -= LEAF_FALL * dt;
+    m.position.y -= this.fall.leafFall * dt;
     m.position.x += (l.vel.x + Math.sin(t * 2.3 + l.sway) * 0.18) * dt;
     m.position.z += (l.vel.z + Math.cos(t * 1.7 + l.sway) * 0.18) * dt;
     const dq = new THREE.Quaternion().setFromAxisAngle(
@@ -444,6 +468,11 @@ export class PlantView {
       const z = new THREE.Vector3(0, 1, 0);
       const x = new THREE.Vector3().crossVectors(y, z);
       m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+      this.events.push({
+        kind: 'leaf',
+        at: { x: m.position.x, y: m.position.y, z: m.position.z },
+        depth: l.depth,
+      });
     }
   }
 
@@ -484,6 +513,7 @@ export class PlantView {
       tex,
       home: { pos: mesh.position.clone(), quat: mesh.quaternion.clone() },
       detachAt: Math.min(fallAt, chain.breakAt),
+      depth: leaf.depth,
       phase: 'on',
       vel: new THREE.Vector3(),
       spin: new THREE.Vector3(),
@@ -500,7 +530,16 @@ export class PlantView {
 
   dispose(): void {
     this.group.removeFromParent();
+    this.group.clear();
     this.stems.dispose();
     this.tipStems.dispose();
+  }
+
+  /** 只給測試看 */
+  get stemsForTest(): THREE.InstancedMesh {
+    return this.stems;
+  }
+  get stemCountForTest(): number {
+    return this.stemCount;
   }
 }
