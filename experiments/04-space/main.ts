@@ -11,6 +11,7 @@ import {
 } from '../../src/growth/branching3d';
 import { hashString, mulberry32 } from '../../src/growth/rng';
 import { planGrass, planLilac, planLily, planStock } from '../../src/growth/species3d';
+import { StableCount } from '../../src/input/fingers';
 import { HandTracker } from '../../src/input/hand';
 import {
   type Backdrop,
@@ -317,7 +318,7 @@ async function toggleHand() {
     try {
       await hand.start();
       handUI.preview.hidden = false;
-      status('伸出手：捏起拇指和食指＝下筆，鬆開＝收筆；五指張開左右上下揮＝轉向');
+      status('伸出手：捏＝下筆，鬆開＝收筆；五指張開揮＝轉向；比 1、2、3、4 半秒＝換植物');
       setTimeout(() => status(''), 5000);
     } catch (err) {
       console.error(err);
@@ -359,12 +360,22 @@ function stepPalmSpin(now: number) {
   }
 }
 
-/** 每幀：把手的位置當成滑鼠，捏 / 放開當成按下 / 放開，張開手掌轉向 */
+/** 比 1、2、3、4 換植物：同一個數字連續比半秒才切，避免手指移動時誤切 */
+const fingerVote = new StableCount(500);
+
+/** 每幀：把手的位置當成滑鼠，捏 / 放開當成按下 / 放開，張開手掌轉向，比數字換植物 */
 function stepHand(now: number) {
   if (!hand.running) return;
   const wasPinched = hand.state.pinched;
   const h = hand.update(now, window.innerWidth, window.innerHeight);
   stepPalmSpin(now);
+  // 捏著或張開手掌時不數（那兩個手勢各有用途）
+  const n = fingerVote.update(h.seen && !h.pinched && !h.open ? h.fingers : null, now);
+  if (n !== null && n <= SPECIES.length && state.species.kind !== n - 1) {
+    state.species.kind = n - 1;
+    renderHud();
+    panel.refresh();
+  }
   const c = handUI.cursor;
   c.hidden = !h.seen;
   c.classList.toggle('down', h.pinched);

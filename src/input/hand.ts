@@ -1,4 +1,5 @@
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+import { extendedFingers } from './fingers';
 import {
   cursorFrom,
   defaultPinchParams,
@@ -32,6 +33,8 @@ export type HandState = {
   /** 手掌中心，鏡像後 0..1 */
   palmX: number;
   palmY: number;
+  /** 這一格伸直的手指數（不含拇指）；沒看到手是 null */
+  fingers: number | null;
 };
 
 /** 連續幾格判定一致才切換「張開手掌」，避免一閃一閃 */
@@ -51,6 +54,7 @@ export class HandTracker {
     open: false,
     palmX: 0.5,
     palmY: 0.5,
+    fingers: null,
   };
   private openVotes = 0;
   params: PinchParams = { ...defaultPinchParams };
@@ -101,6 +105,7 @@ export class HandTracker {
     this.state.seen = false;
     this.state.pinched = false;
     this.state.open = false;
+    this.state.fingers = null;
   }
 
   /** 每幀呼叫；同一格影像不重算 */
@@ -116,6 +121,7 @@ export class HandTracker {
       s.pinched = false;
       s.open = false;
       s.ratio = null;
+      s.fingers = null;
       this.openVotes = 0;
       return s;
     }
@@ -131,6 +137,7 @@ export class HandTracker {
       : Math.max(-OPEN_FRAMES, this.openVotes - 1);
     if (this.openVotes >= OPEN_FRAMES) s.open = true;
     else if (this.openVotes <= -OPEN_FRAMES || s.pinched) s.open = false;
+    s.fingers = extendedFingers(lm);
     const pc = palmCenter(lm);
     if (pc) {
       s.palmX = pc.x;
