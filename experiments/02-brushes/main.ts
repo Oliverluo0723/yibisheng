@@ -20,7 +20,7 @@ import { drawPaper } from '../../src/render/paper';
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import { StrokeRecorder } from '../../src/strokes/recorder';
 import type { Thumb } from '../../src/ui/panels';
-import { BG_PAPER, BG_SAMPLES, BG_USER, type BgState } from './backgrounds';
+import { BG_PAPER, BG_SAMPLES, BG_USER, type BgState, DEFAULT_BG } from './backgrounds';
 import { createPanel, type GrowState } from './panel';
 
 const PAPER_GRAIN_DOTS = 6000;
@@ -47,7 +47,7 @@ const ui = {
   lastColor: undefined as NipponColor | undefined,
 };
 let leaves: LeafSprite[] = [];
-const bg: BgState = { choice: BG_PAPER, params: { ...defaultBackdropParams } };
+const bg: BgState = { choice: DEFAULT_BG, params: { ...defaultBackdropParams } };
 /** 已載入的背景（範例照名字快取；使用者的檔案只留最新一個） */
 const backdrops = new Map<string, Backdrop>();
 
@@ -330,6 +330,8 @@ new p5((p: p5) => {
     currentBrush: () => ui.brush,
     openFile: (file) => void useFile(file),
   });
+  // 預設背景：飛燕草影片（靜音影片可以自動播放，不用等使用者點）
+  void selectBackground(DEFAULT_BG);
 
   window.addEventListener('keydown', (ev) => {
     if (ev.target instanceof HTMLInputElement || ev.metaKey || ev.ctrlKey) return;

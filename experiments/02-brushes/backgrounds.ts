@@ -1,6 +1,8 @@
 import type { BackdropKind, BackdropParams } from '../../src/render/backdrop';
 
 export const BG_PAPER = '紙';
+/** 一開始就用這個背景 */
+export const DEFAULT_BG = '飛燕草';
 export const BG_USER = '我的檔案';
 
 export type BgState = { choice: string; params: BackdropParams };
