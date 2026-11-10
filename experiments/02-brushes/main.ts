@@ -5,7 +5,8 @@ import { defaultPenParams, type PenSample, SpringPen } from '../../src/brushes/p
 import { defaultBranchStyle, PlantPainter } from '../../src/brushes/plantPainter';
 import { hexToRgb, type NipponColor, PALETTES } from '../../src/color/nippon';
 import { BranchingPlant } from '../../src/growth/branching';
-import { hashString } from '../../src/growth/rng';
+import { randomizeGrowth } from '../../src/growth/randomize';
+import { hashString, mulberry32 } from '../../src/growth/rng';
 import { defaultGrowthParams } from '../../src/growth/types';
 import {
   type Backdrop,
@@ -33,6 +34,7 @@ const grow: GrowState = {
   growth: { ...defaultGrowthParams },
   branch: { ...defaultBranchStyle },
   sound: { enabled: true, volume: 0.8 },
+  random: { enabled: true, amount: 0.5 },
 };
 const engine = new WebAudioEngine(7);
 let audioStarted = false;
@@ -202,17 +204,16 @@ new p5((p: p5) => {
     if (!stroke || stroke.points.length < 2) return;
     const make = BRUSH_FACTORIES[a.brushIndex];
     if (!make) return;
-    const plant = new BranchingPlant(
-      stroke,
-      { ...grow.growth },
-      hashString(stroke.id),
-      p.width / p.height,
-    );
+    const seed = hashString(stroke.id);
+    const growth = grow.random.enabled
+      ? randomizeGrowth(grow.growth, grow.random.amount, mulberry32(seed ^ 0x9e3779b9))
+      : { ...grow.growth };
+    const plant = new BranchingPlant(stroke, growth, seed, p.width / p.height);
     const env = { ...a.env, ctx: ctxOf(ink) };
     const painter = new PlantPainter(plant, make, { ...a.brush.params }, env, {
       ...grow.branch,
       size: penParams.size,
-      life: grow.growth.life,
+      life: growth.life,
     });
     painters.push({ painter, seq: plantSeq++ });
   }

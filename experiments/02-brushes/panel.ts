@@ -22,6 +22,8 @@ export type GrowState = {
   growth: GrowthParams;
   branch: typeof defaultBranchStyle;
   sound: { enabled: boolean; volume: number };
+  /** 每筆隨機：每一筆的植物用一組在滑桿附近抖過的數值 */
+  random: { enabled: boolean; amount: number };
 };
 
 export type PanelActions = {
@@ -137,6 +139,8 @@ export function createPanel(
     open: false,
   });
   toggle(growPanel, '放開後會長', grow, 'enabled', changed);
+  toggle(growPanel, '每筆隨機', grow.random, 'enabled', changed);
+  slider(growPanel, '隨機幅度', grow.random, 'amount', 0, 1, 0.01, changed);
   const g = grow.growth;
   slider(growPanel, '速度', g, 'speed', 0.01, 0.3, 0.005, changed);
   slider(growPanel, '段長', g, 'segmentLength', 0.004, 0.04, 0.001, changed);
