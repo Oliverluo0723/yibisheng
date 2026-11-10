@@ -4,6 +4,7 @@ import type { StrokePoint } from '../../strokes/types';
 import { BotanicaEngine, type EngineDeps } from './engine';
 import type { SampleRole } from './manifest';
 import { defaultBotanicaParams, freshBotanicaParams } from './params';
+import { DEFAULT_RECIPE } from './recipe';
 
 const fake = () => {
   const calls: string[] = [];
@@ -38,7 +39,7 @@ const fake = () => {
     drips: {
       ...layer,
       drip: (id) => calls.push(`drip ${id}`),
-      glitch: (id) => calls.push(`glitch ${id}`),
+      glitch: (id, _s, o) => calls.push(`glitch ${id}${o?.reverse ? ' rev' : ''}`),
     },
     drums: {
       ...layer,
@@ -379,4 +380,32 @@ test('弦樂單音沒載好：pad 不響，但其他照常', () => {
   f.tick(200);
   e.onGrowth(ev(1));
   expect(f.calls.at(-1)).toMatch(/^grain /);
+});
+
+test('枯：葉落發很輕的顆粒、枝斷走偶發層反轉；都不推熱度、不算活動', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  e.onPlantStart(1, '押花樹');
+  f.tick(20000);
+  const heatBefore = e.heat();
+  f.calls.length = 0;
+  for (let i = 0; i < 20; i++) {
+    f.tick(1);
+    e.onWither({ kind: 'leaf', x: 0.5, y: 0.5, depth: 2 }, '押花樹');
+  }
+  const grains = f.calls.filter((c) => c.startsWith('grain '));
+  expect(grains.length).toBeGreaterThan(0);
+  expect(grains.length).toBeLessThanOrEqual(DEFAULT_RECIPE.grains.maxPerSec);
+  for (const g of grains) expect(Number(/db=(-?\d+)/.exec(g)?.[1])).toBeLessThanOrEqual(-14);
+  e.onWither({ kind: 'branch', x: 0.5, y: 0.5, depth: 1 }, '押花樹');
+  expect(f.calls.some((c) => /^glitch .* rev$/.test(c))).toBe(true);
+  expect(e.heat()).toBeLessThanOrEqual(heatBefore); // 只會自然衰減，不會因枯事件上升
+  // 不算活動：閒置 12 秒後的偶發排程照舊會來
+  f.tick(60000);
+  f.calls.length = 0;
+  for (let i = 0; i < 200; i++) {
+    f.tick(500);
+    e.poll();
+  }
+  expect(f.calls.some((c) => c.startsWith('drip ') || c.startsWith('glitch '))).toBe(true);
 });

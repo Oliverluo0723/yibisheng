@@ -2,7 +2,7 @@ import * as Tone from 'tone';
 import type { Bus } from '../audio/bus';
 import type { Loader } from '../audio/loader';
 import { LayerBase } from './base';
-import type { DripLayer } from './types';
+import type { DripLayer, DripOpts } from './types';
 
 type Voice = { player: Tone.Player; panner: Tone.Panner; gain: Tone.Gain; startedAt: number };
 
@@ -30,16 +30,16 @@ export class Drips extends LayerBase implements DripLayer {
   }
 
   drip(sampleId: string): void {
-    this.play(sampleId, 1, -6);
+    this.play(sampleId, 1, -6, false);
   }
 
-  glitch(sampleId: string, shift: number): void {
-    this.play(sampleId, 2 ** (shift / 12), -8);
+  glitch(sampleId: string, shift: number, opts: DripOpts = {}): void {
+    this.play(sampleId, 2 ** (shift / 12), opts.gainDb ?? -8, opts.reverse ?? false);
   }
 
-  private play(id: string, rate: number, db: number): void {
+  private play(id: string, rate: number, db: number, reverse: boolean): void {
     if (!this.isOn) return;
-    const buf = this.loader.get(id);
+    const buf = this.loader.buffer(id, reverse);
     if (!buf) return;
     const v = this.voices.reduce((a, b) => (b.startedAt < a.startedAt ? b : a));
     const now = Tone.now();

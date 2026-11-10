@@ -90,7 +90,7 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
     },
     drips: {
       drip: (id) => layers?.drips.drip(id),
-      glitch: (id, s) => layers?.drips.glitch(id, s),
+      glitch: (id, s, o) => layers?.drips.glitch(id, s, o),
       setEnabled: (b) => layers?.drips.setEnabled(b),
       setVolume: (v) => layers?.drips.setVolume(v),
       dispose: () => layers?.drips.dispose(),

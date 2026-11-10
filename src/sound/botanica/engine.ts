@@ -4,7 +4,7 @@
 import { mulberry32 } from '../../growth/rng';
 import type { GrowthEvent } from '../../growth/types';
 import type { StrokePoint } from '../../strokes/types';
-import type { SoundEngine } from '../engine';
+import type { SoundEngine, WitherEvent } from '../engine';
 import {
   chordAt,
   chordMidis,
@@ -215,7 +215,38 @@ export class BotanicaEngine implements SoundEngine {
     if (!this.rate.allow(Math.floor(now))) return;
     // 顆粒的素材跟著「發事件的那株」的聲音；沒給就用最近放開的
     const v = voiceName === undefined ? this.voice : voiceFor(voiceName);
-    const role = grainRole(v, grainCategory(e.depth));
+    this.grainFor(e.depth, e.x, v, {
+      gainDb: v.grains.gainDb + (e.kind === 'leaf' ? -8 : 0),
+      reverseChance: this.recipe.grains.reverseChance,
+    });
+  }
+
+  /** 枯：葉落地＝很輕的顆粒，枝斷＝反轉的 swell 或 glitch。不算活動、不推熱度。 */
+  onWither(e: WitherEvent, voiceName?: string): void {
+    const now = this.deps.now();
+    const v = voiceName === undefined ? this.voice : voiceFor(voiceName);
+    if (e.kind === 'leaf') {
+      if (this.rng() < 0.5) return;
+      if (!this.rate.allow(Math.floor(now))) return;
+      this.grainFor(e.depth, e.x, v, { gainDb: v.grains.gainDb - 16, reverseChance: 0.6 });
+      return;
+    }
+    const s = this.pick(this.rng() < 0.5 ? 'swell' : 'glitchfx');
+    if (!s) return;
+    this.deps.drips.glitch(s.id, keyShift(s.sourceKey, this.params.key), {
+      reverse: true,
+      gainDb: -6,
+    });
+  }
+
+  /** 挑這株、這個深度的顆粒素材，位移到目前和弦音上，丟給顆粒層 */
+  private grainFor(
+    depth: number,
+    x: number,
+    v: Voice,
+    o: { gainDb: number; reverseChance: number },
+  ): void {
+    const role = grainRole(v, grainCategory(depth));
     const s = this.pick(role);
     if (!s) return;
     const g = this.recipe.grains;
@@ -233,9 +264,9 @@ export class BotanicaEngine implements SoundEngine {
       : {};
     this.deps.grains.grain(s.id, {
       shift,
-      pan: (e.x - 0.5) * 1.6,
-      reverse: this.rng() < g.reverseChance,
-      gainDb: v.grains.gainDb + (e.kind === 'leaf' ? -8 : 0),
+      pan: (x - 0.5) * 1.6,
+      reverse: this.rng() < o.reverseChance,
+      gainDb: o.gainDb,
       ...slice,
     });
   }

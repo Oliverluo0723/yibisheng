@@ -62,9 +62,11 @@ export interface GrainLayer extends Layer {
   grain(sampleId: string, opts: GrainOpts): void;
 }
 
+export type DripOpts = { reverse?: boolean; gainDb?: number };
+
 export interface DripLayer extends Layer {
   drip(sampleId: string): void;
-  glitch(sampleId: string, shift: number): void;
+  glitch(sampleId: string, shift: number, opts?: DripOpts): void;
 }
 
 /** 鼓：兩條 loop（打擊、鼓組），音量與低通由引擎依熱度推下來 */
