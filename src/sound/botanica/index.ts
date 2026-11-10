@@ -2,12 +2,15 @@
 import * as Tone from 'tone';
 import { mulberry32 } from '../../growth/rng';
 import { Bus } from './audio/bus';
+import { Clock } from './audio/clock';
 import { Loader } from './audio/loader';
 import { BotanicaEngine } from './engine';
 import { Bed } from './layers/bed';
 import { Bloom } from './layers/bloom';
 import { Drips } from './layers/drips';
+import { Drums } from './layers/drums';
 import { Grains } from './layers/grains';
+import { Piano } from './layers/piano';
 import type { SampleRole } from './manifest';
 import type { BotanicaParams } from './params';
 
@@ -21,6 +24,9 @@ const LOAD_ORDER: readonly SampleRole[] = [
   'bell',
   'glitch',
   'strings',
+  'keys',
+  'perc',
+  'kit',
   'piano',
   'swell',
   'drip',
@@ -36,10 +42,20 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
   const loader = new Loader();
   // Tone 的節點要等 AudioContext 起來才建（瀏覽器規定使用者互動後才能出聲），
   // 所以層用延遲建立的代理包起來：start() 之前呼叫都是 no-op。
-  let layers: { bed: Bed; bloom: Bloom; grains: Grains; drips: Drips } | null = null;
+  let layers: {
+    bed: Bed;
+    bloom: Bloom;
+    grains: Grains;
+    drips: Drips;
+    drums: Drums;
+    piano: Piano;
+  } | null = null;
   const build = () => {
     bus = new Bus();
+    const clock = new Clock();
     layers = {
+      drums: new Drums(bus, loader, clock, layerRng),
+      piano: new Piano(bus, loader, clock, layerRng),
       bed: new Bed(bus, loader, layerRng),
       bloom: new Bloom(bus, loader),
       grains: new Grains(bus, loader),
@@ -74,6 +90,20 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
       setEnabled: (b) => layers?.drips.setEnabled(b),
       setVolume: (v) => layers?.drips.setVolume(v),
       dispose: () => layers?.drips.dispose(),
+    },
+    drums: {
+      start: (bpm) => layers?.drums.start(bpm),
+      setLevels: (p, k, lp) => layers?.drums.setLevels(p, k, lp),
+      setEnabled: (b) => layers?.drums.setEnabled(b),
+      setVolume: (v) => layers?.drums.setVolume(v),
+      dispose: () => layers?.drums.dispose(),
+    },
+    piano: {
+      start: (bpm) => layers?.piano.start(bpm),
+      phrase: (n) => layers?.piano.phrase(n),
+      setEnabled: (b) => layers?.piano.setEnabled(b),
+      setVolume: (v) => layers?.piano.setVolume(v),
+      dispose: () => layers?.piano.dispose(),
     },
     output: {
       start: async () => {

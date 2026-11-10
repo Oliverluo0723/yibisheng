@@ -18,7 +18,12 @@ const fake = () => {
     'swell',
     'drip',
     'glitchfx',
+    'kit',
+    'perc',
+    'keys',
   ]);
+  const levels: { perc: number; kit: number; lowpassHz: number }[] = [];
+  const phrases: { midi: number; eighth: number; velocity: number }[][] = [];
   let t = 0;
   const deps: EngineDeps = {
     bed: { ...layer, start: () => calls.push('bed.start') },
@@ -29,12 +34,20 @@ const fake = () => {
       drip: (id) => calls.push(`drip ${id}`),
       glitch: (id) => calls.push(`glitch ${id}`),
     },
+    drums: {
+      ...layer,
+      start: (bpm) => calls.push(`drums.start ${bpm}`),
+      setLevels: (perc, kit, lowpassHz) => levels.push({ perc, kit, lowpassHz }),
+    },
+    piano: { ...layer, start: () => {}, phrase: (n) => phrases.push([...n]) },
     store: { ready: (r) => ready.has(r), loadRole: async () => {} },
     now: () => t,
     seed: 1,
   };
   return {
     calls,
+    levels,
+    phrases,
     deps,
     ready,
     tick: (ms: number) => {
@@ -179,4 +192,97 @@ test('同一毫秒內的多個分枝只出一顆（時間戳帶小數也一樣�
     e.onGrowth(ev(0));
   }
   expect(f.calls.filter((c) => c.startsWith('grain')).length).toBe(1);
+});
+
+const heatUp = (e: BotanicaEngine, f: ReturnType<typeof fake>, strokes: number) => {
+  for (let i = 0; i < strokes; i++) {
+    e.onPlantStart(i + 1);
+    for (let j = 0; j < 10; j++) {
+      f.tick(50);
+      e.onGrowth(ev(1));
+    }
+  }
+};
+
+test('熱度：畫越多越高，停手後退', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  expect(e.heat()).toBe(0);
+  heatUp(e, f, 2);
+  const a = e.heat();
+  heatUp(e, f, 4);
+  expect(e.heat()).toBeGreaterThan(a);
+  f.tick(60000);
+  expect(e.heat()).toBeLessThan(a);
+});
+
+test('速度只從有打擊可配的鼓組速度裡抽（不會是 86）', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const f = fake();
+    const e = new BotanicaEngine(calm(), { ...f.deps, seed });
+    expect([100, 104, 106, 118, 119, 120]).toContain(e.bpm);
+  }
+});
+
+test('start 把速度交給鼓與鋼琴', async () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  expect(f.calls).toContain(`drums.start ${e.bpm}`);
+  e.dispose();
+});
+
+test('鼓的音量跟著熱度：冷時 0、熱時鼓組全開、停手久了回到 0', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  e.poll();
+  expect(f.levels.at(-1)).toMatchObject({ perc: 0, kit: 0 });
+  heatUp(e, f, 8);
+  e.poll();
+  expect(f.levels.at(-1)?.kit).toBe(1);
+  f.tick(300000);
+  e.poll();
+  expect(f.levels.at(-1)).toMatchObject({ perc: 0, kit: 0 });
+});
+
+test('鋼琴：冷時不彈；熱時會彈，音在當下的調裡', () => {
+  const f = fake();
+  const p = calm();
+  const e = new BotanicaEngine(p, f.deps);
+  for (let i = 0; i < 60; i++) {
+    f.tick(500);
+    e.poll();
+  }
+  expect(f.phrases.length).toBe(0);
+  heatUp(e, f, 6);
+  for (let i = 0; i < 40; i++) {
+    f.tick(500);
+    e.poll();
+  }
+  expect(f.phrases.length).toBeGreaterThan(0);
+  const C = [0, 2, 4, 5, 7, 9, 11];
+  for (const ph of f.phrases) for (const n of ph) expect(C).toContain(n.midi % 12);
+  p.key = 'G';
+  e.applyParams();
+  const before = f.phrases.length;
+  for (let i = 0; i < 40; i++) {
+    f.tick(500);
+    e.onGrowth(ev(1));
+    e.poll();
+  }
+  expect(f.phrases.length).toBeGreaterThan(before);
+  const G = C.map((x) => (x + 7) % 12);
+  for (const ph of f.phrases.slice(before)) for (const n of ph) expect(G).toContain(n.midi % 12);
+});
+
+test('鋼琴素材沒載好就不彈', () => {
+  const f = fake();
+  f.ready.delete('keys');
+  const e = new BotanicaEngine(calm(), f.deps);
+  heatUp(e, f, 6);
+  for (let i = 0; i < 40; i++) {
+    f.tick(500);
+    e.poll();
+  }
+  expect(f.phrases.length).toBe(0);
 });
