@@ -40,7 +40,11 @@ export class Clock {
   /** 每小節呼叫一次，time 是小節線的 AudioContext 時間；回傳取消函式 */
   everyBar(fn: (time: number) => void): () => void {
     const t = Tone.getTransport();
-    const id = t.scheduleRepeat(fn, '1m', t.nextSubdivision('1m'));
+    // 第三個參數是「拍子時鐘上的位置」，不是 AudioContext 的秒數：
+    // 用 ticks 算出下一個小節線，才會真的落在格線上（否則每小節都晚 lookAhead 約 100 ms）
+    const barTicks = t.PPQ * 4;
+    const nextBarTicks = Math.ceil((t.ticks + 1) / barTicks) * barTicks;
+    const id = t.scheduleRepeat(fn, '1m', `${nextBarTicks}i`);
     return () => t.clear(id);
   }
 }
