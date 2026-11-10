@@ -1,5 +1,5 @@
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
-import { extendedFingers } from './fingers';
+import { handNumber } from './fingers';
 import {
   cursorFrom,
   defaultPinchParams,
@@ -33,7 +33,7 @@ export type HandState = {
   /** 手掌中心，鏡像後 0..1 */
   palmX: number;
   palmY: number;
-  /** 這一格伸直的手指數（不含拇指）；沒看到手是 null */
+  /** 這一格比的數字：1–4、6（拇指小指）、0 握拳；沒看到手是 null */
   fingers: number | null;
 };
 
@@ -137,7 +137,7 @@ export class HandTracker {
       : Math.max(-OPEN_FRAMES, this.openVotes - 1);
     if (this.openVotes >= OPEN_FRAMES) s.open = true;
     else if (this.openVotes <= -OPEN_FRAMES || s.pinched) s.open = false;
-    s.fingers = extendedFingers(lm);
+    s.fingers = handNumber(lm, this.params);
     const pc = palmCenter(lm);
     if (pc) {
       s.palmX = pc.x;

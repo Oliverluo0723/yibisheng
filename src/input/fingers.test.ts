@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import { extendedFingers, StableCount } from './fingers';
-import type { Landmark } from './pinch';
+import { extendedFingers, handNumber, StableCount } from './fingers';
+import { defaultPinchParams, type Landmark } from './pinch';
 
 /** 做一隻手：手腕在 (0.5, 0.9)，手指往上伸；extended 決定哪幾根伸直 */
 function hand(extended: boolean[], thumbOut = false): Landmark[] {
@@ -68,4 +68,25 @@ test('放下手再比同一個數字，會再報一次', () => {
   s.update(null, 600);
   s.update(2, 700);
   expect(s.update(2, 1200)).toBe(2);
+});
+
+test('handNumber：1–4 數伸直的手指；六＝只伸小指加拇指張開', () => {
+  const p = defaultPinchParams;
+  expect(handNumber(hand([true, false, false, false]), p)).toBe(1);
+  expect(handNumber(hand([true, true, true, false]), p)).toBe(3);
+  expect(handNumber(hand([true, true, true, true]), p)).toBe(4);
+  expect(handNumber(hand([false, false, false, true], true), p)).toBe(6);
+  // 只伸小指但拇指收著 → 當作 1
+  expect(handNumber(hand([false, false, false, true], false), p)).toBe(1);
+  // 握拳
+  expect(handNumber(hand([false, false, false, false]), p)).toBe(0);
+  expect(handNumber(hand([false, false, false, false]).slice(0, 10), p)).toBeNull();
+});
+
+test('StableCount 接受 6，不接受 5', () => {
+  const s = new StableCount(500);
+  s.update(6, 0);
+  expect(s.update(6, 500)).toBe(6);
+  s.update(5, 600);
+  expect(s.update(5, 1200)).toBeNull();
 });

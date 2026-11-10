@@ -318,7 +318,9 @@ async function toggleHand() {
     try {
       await hand.start();
       handUI.preview.hidden = false;
-      status('伸出手：捏＝下筆，鬆開＝收筆；五指張開揮＝轉向；比 1、2、3、4 半秒＝換植物');
+      status(
+        '伸出手：捏＝下筆，鬆開＝收筆；五指張開揮＝轉向；比 1、2、3、4 半秒＝換植物，比六（拇指小指）＝丁香',
+      );
       setTimeout(() => status(''), 5000);
     } catch (err) {
       console.error(err);
@@ -371,8 +373,10 @@ function stepHand(now: number) {
   stepPalmSpin(now);
   // 捏著或張開手掌時不數（那兩個手勢各有用途）
   const n = fingerVote.update(h.seen && !h.pinched && !h.open ? h.fingers : null, now);
-  if (n !== null && n <= SPECIES.length && state.species.kind !== n - 1) {
-    state.species.kind = n - 1;
+  // 1–4 → 前四種；六（拇指小指）→ 第五種（丁香）
+  const kind = n === 6 ? 4 : n !== null ? n - 1 : null;
+  if (kind !== null && kind < SPECIES.length && state.species.kind !== kind) {
+    state.species.kind = kind;
     renderHud();
     panel.refresh();
   }
