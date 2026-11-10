@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import {
   chordAt,
+  chordMidis,
   chordTones,
   foldShift,
   grainShift,
@@ -36,4 +37,13 @@ test('位移折回 ±7', () => {
   expect(nearestOffset(6)).toBe(6);
   for (const k of [-6, -5, 0, 5])
     for (const t of [0, 4, 7, 9, 11]) expect(Math.abs(grainShift(k, t))).toBeLessThanOrEqual(7);
+});
+
+test('chordMidis：和弦音放到指定音域，低到高排好', () => {
+  // C 大調 IV（F：5,9,0）
+  expect(chordMidis(0, [5, 9, 0], 'mid')).toEqual([53, 57, 60]);
+  expect(chordMidis(0, [5, 9, 0], 'low')).toEqual([41, 45, 48]);
+  expect(chordMidis(0, [5, 9, 0], 'high')).toEqual([65, 69, 72]);
+  // G 大調 I（0,4,7）→ G B D，根音 55
+  expect(chordMidis(7, [0, 4, 7], 'mid')).toEqual([55, 59, 62]);
 });

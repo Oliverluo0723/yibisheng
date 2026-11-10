@@ -16,6 +16,7 @@ const ROLES: SampleRole[] = [
   'kit',
   'perc',
   'keys',
+  'ostr',
 ];
 
 test('清單一致：id、file 不重複，每個 role 都有素材', () => {
@@ -51,4 +52,10 @@ test('鼓組、打擊有 BPM；鋼琴有 MIDI 音高與下載網址', () => {
   ]);
   for (const k of keys)
     expect(k.url).toMatch(/^https:\/\/tonejs\.github\.io\/audio\/salamander\/[A-G]s?\d\.mp3$/);
+});
+
+test('弦樂單音：11 個，C/F 交替，MIDI 正確，來源在家目錄', () => {
+  const o = samplesByRole('ostr');
+  expect(o.map((s) => s.midi)).toEqual([24, 29, 36, 41, 48, 53, 60, 65, 72, 77, 84]);
+  for (const s of o) expect(s.source.startsWith('~/')).toBe(true);
 });

@@ -27,8 +27,18 @@ export class GrainPool {
     v.player.buffer = buffer;
     v.player.detune = opts.shift * 100;
     v.panner.pan.setValueAtTime(Math.max(-1, Math.min(1, opts.pan)), now);
+    v.gain.gain.cancelScheduledValues(now);
     v.gain.gain.setValueAtTime(Tone.dbToGain(opts.gainDb), now);
-    v.player.start(now + 0.01);
+    // 長素材切片：從 offsetFrac 處開始、播 durationSec 就停
+    const dur = opts.durationSec;
+    const offset =
+      dur !== undefined ? (opts.offsetFrac ?? 0) * Math.max(0, buffer.duration - dur) : 0;
+    v.player.start(now + 0.01, offset);
+    if (dur !== undefined) {
+      v.gain.gain.setValueAtTime(Tone.dbToGain(opts.gainDb), now + 0.01 + dur - 0.05);
+      v.gain.gain.linearRampToValueAtTime(0, now + 0.01 + dur);
+      v.player.stop(now + 0.01 + dur);
+    }
     v.startedAt = now;
   }
 

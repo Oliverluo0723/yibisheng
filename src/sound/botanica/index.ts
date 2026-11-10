@@ -10,6 +10,7 @@ import { Bloom } from './layers/bloom';
 import { Drips } from './layers/drips';
 import { Drums } from './layers/drums';
 import { Grains } from './layers/grains';
+import { Pad } from './layers/pad';
 import { Piano } from './layers/piano';
 import type { SampleRole } from './manifest';
 import type { BotanicaParams } from './params';
@@ -24,6 +25,7 @@ const LOAD_ORDER: readonly SampleRole[] = [
   'bell',
   'glitch',
   'strings',
+  'ostr',
   'keys',
   'perc',
   'kit',
@@ -49,6 +51,7 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
     drips: Drips;
     drums: Drums;
     piano: Piano;
+    pad: Pad;
   } | null = null;
   const build = () => {
     bus = new Bus();
@@ -56,6 +59,7 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
     layers = {
       drums: new Drums(bus, loader, clock, layerRng),
       piano: new Piano(bus, loader, clock, layerRng),
+      pad: new Pad(bus, loader),
       bed: new Bed(bus, loader, layerRng),
       bloom: new Bloom(bus, loader),
       grains: new Grains(bus, loader),
@@ -104,6 +108,12 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
       setEnabled: (b) => layers?.piano.setEnabled(b),
       setVolume: (v) => layers?.piano.setVolume(v),
       dispose: () => layers?.piano.dispose(),
+    },
+    pad: {
+      chord: (m, o) => layers?.pad.chord(m, o),
+      setEnabled: (b) => layers?.pad.setEnabled(b),
+      setVolume: (v) => layers?.pad.setVolume(v),
+      dispose: () => layers?.pad.dispose(),
     },
     output: {
       start: async () => {

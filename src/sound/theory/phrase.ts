@@ -56,3 +56,43 @@ export function phraseGapMs(heat: number, rng: () => number): number | null {
   const t = Math.min(1, (heat - 0.2) / 0.8);
   return (9000 + (2500 - 9000) * t) * (0.7 + rng() * 0.6);
 }
+
+/** 慢慢分解的和弦：由低到高，每個音隔 1–2 個八分音符，很輕。 */
+export function brokenChord(rng: () => number, midis: readonly number[]): PhraseNote[] {
+  let eighth = 0;
+  return midis.map((midi, i) => {
+    if (i > 0) eighth += 1 + Math.floor(rng() * 2);
+    return { midi, eighth, velocity: 0.2 + rng() * 0.2 };
+  });
+}
+
+/**
+ * 一串小花同時開（丁香）：6–9 個高音域（72–96）的小音符，擠在前四個八分音符裡，
+ * 可以同一拍，和弦音至少一半，其餘調內鄰音；很輕。
+ */
+export function cluster(
+  rng: () => number,
+  keyPc: number,
+  chordTones: readonly number[],
+): PhraseNote[] {
+  const scale: number[] = [];
+  const chordy: number[] = [];
+  for (let m = 72; m <= 96; m++) {
+    const r = rel(m, keyPc);
+    if (!MAJOR.includes(r)) continue;
+    scale.push(m);
+    if (chordTones.includes(r)) chordy.push(m);
+  }
+  const pick = (xs: readonly number[]) => xs[Math.floor(rng() * xs.length)] as number;
+  const n = 6 + Math.floor(rng() * 4);
+  const notes: PhraseNote[] = [];
+  for (let i = 0; i < n; i++) {
+    const fromChord = i < Math.ceil(n * 0.6) || rng() < 0.5;
+    notes.push({
+      midi: pick(fromChord ? chordy : scale),
+      eighth: Math.floor(rng() * 5),
+      velocity: 0.12 + rng() * 0.18,
+    });
+  }
+  return notes.sort((a, b) => a.eighth - b.eighth);
+}

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { mulberry32 } from '../../growth/rng';
 import { chordTones } from './chords';
-import { makePhrase, phraseGapMs } from './phrase';
+import { brokenChord, cluster, makePhrase, phraseGapMs } from './phrase';
 
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 
@@ -44,5 +44,45 @@ test('熱度不到兩成不彈；越熱間隔越短', () => {
     const g = phraseGapMs(1, rng) as number;
     expect(g).toBeGreaterThanOrEqual(2500 * 0.7);
     expect(g).toBeLessThanOrEqual(9000 * 1.3);
+  }
+});
+
+test('brokenChord：和弦音由低到高分解，八分音符間隔 1–2，力度輕', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    const p = brokenChord(mulberry32(seed), [53, 57, 60]);
+    expect(p.map((n) => n.midi)).toEqual([53, 57, 60]);
+    expect(p[0]?.eighth).toBe(0);
+    for (let i = 1; i < p.length; i++) {
+      const d = (p[i] as { eighth: number }).eighth - (p[i - 1] as { eighth: number }).eighth;
+      expect(d).toBeGreaterThanOrEqual(1);
+      expect(d).toBeLessThanOrEqual(2);
+    }
+    for (const n of p) {
+      expect(n.velocity).toBeGreaterThanOrEqual(0.2);
+      expect(n.velocity).toBeLessThanOrEqual(0.4);
+    }
+  }
+});
+
+test('cluster：6–9 個高音小音符，調內、和弦音為主，可以同一拍、很輕', () => {
+  for (let seed = 1; seed <= 100; seed++) {
+    const keyPc = seed % 12;
+    const tones = chordTones('I');
+    const p = cluster(mulberry32(seed), keyPc, tones);
+    expect(p.length).toBeGreaterThanOrEqual(6);
+    expect(p.length).toBeLessThanOrEqual(9);
+    const rel = (m: number) => (((m - keyPc) % 12) + 12) % 12;
+    let chordy = 0;
+    for (const n of p) {
+      expect(MAJOR).toContain(rel(n.midi));
+      expect(n.midi).toBeGreaterThanOrEqual(72);
+      expect(n.midi).toBeLessThanOrEqual(96);
+      expect(n.velocity).toBeGreaterThanOrEqual(0.12);
+      expect(n.velocity).toBeLessThanOrEqual(0.3);
+      expect(n.eighth).toBeGreaterThanOrEqual(0);
+      expect(n.eighth).toBeLessThanOrEqual(4);
+      if (tones.includes(rel(n.midi))) chordy++;
+    }
+    expect(chordy / p.length).toBeGreaterThanOrEqual(0.5);
   }
 });

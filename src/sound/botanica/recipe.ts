@@ -1,8 +1,22 @@
 import { mulberry32 } from '../../growth/rng';
 import type { ChordAction } from '../theory/chords';
 
-/** 這一筆綻放的「顏色」；none = 只有顆粒、沒有綻放。 */
-export type BloomColour = 'strings' | 'piano' | 'swell' | 'clarinet' | 'none';
+/**
+ * 這一筆綻放的「顏色」；none = 只有顆粒、沒有綻放。
+ * strings／piano／swell／clarinet 是播一段素材；pad／padLow／padHigh 是弦樂拉長的和弦；
+ * keys 是鋼琴慢分解和弦；cluster 是丁香的一串小音符加高音弦樂墊。
+ */
+export type BloomColour =
+  | 'strings'
+  | 'piano'
+  | 'swell'
+  | 'clarinet'
+  | 'pad'
+  | 'padLow'
+  | 'padHigh'
+  | 'keys'
+  | 'cluster'
+  | 'none';
 
 /** 一筆的隨機配方。同一個種子、同一個幅度永遠得到同一份。 */
 export type Recipe = {
@@ -33,7 +47,7 @@ export type Recipe = {
 };
 
 export const DEFAULT_RECIPE: Recipe = {
-  colour: 'strings',
+  colour: 'pad',
   sliceStart: 0,
   sliceLen: Number.POSITIVE_INFINITY,
   reverse: false,
@@ -47,12 +61,13 @@ export const DEFAULT_RECIPE: Recipe = {
   grains: { maxPerSec: 6, bias: 0, reverseChance: 0 },
 };
 
-const COLOUR_WEIGHTS: readonly [BloomColour, number][] = [
-  ['strings', 4],
-  ['piano', 3],
-  ['swell', 2],
-  ['clarinet', 1],
-  ['none', 1.5],
+/** 沒給聲音時的權重（押花樹） */
+const DEFAULT_WEIGHTS: readonly [BloomColour, number][] = [
+  ['pad', 4],
+  ['piano', 2],
+  ['strings', 1.5],
+  ['swell', 1],
+  ['none', 1],
 ];
 
 function weighted<T>(items: readonly [T, number][], r: number): T {
@@ -70,7 +85,11 @@ function weighted<T>(items: readonly [T, number][], r: number): T {
  * 幅度 0 = 預設配方；介於中間時，機率乘上幅度、範圍往預設值收縮。
  * 不論幅度，抽籤次數固定，所以同一筆在不同幅度下仍是「同一個方向」的變化。
  */
-export function makeRecipe(seed: number, amount: number): Recipe {
+export function makeRecipe(
+  seed: number,
+  amount: number,
+  voice: { bloom: readonly [BloomColour, number][] } = { bloom: DEFAULT_WEIGHTS },
+): Recipe {
   const a = Math.min(1, Math.max(0, amount));
   const rng = mulberry32(seed);
   const r = () => rng();
@@ -79,7 +98,8 @@ export function makeRecipe(seed: number, amount: number): Recipe {
   const D = DEFAULT_RECIPE;
 
   const colourRoll = r();
-  const colourPick = weighted(COLOUR_WEIGHTS, r());
+  const colourPick = weighted(voice.bloom, r());
+  const colourDefault = (voice.bloom[0] ?? DEFAULT_WEIGHTS[0])[0];
   const sliceRoll = r();
   const sliceLenRaw = range(1.5, 6);
   const sliceStartRaw = range(0, 0.6);
@@ -97,7 +117,7 @@ export function makeRecipe(seed: number, amount: number): Recipe {
   const revChanceRaw = range(0, 0.3);
 
   return {
-    colour: colourRoll < a ? colourPick : D.colour,
+    colour: colourRoll < a ? colourPick : colourDefault,
     sliceStart: sliceStartRaw * a,
     sliceLen: sliceRoll < (2 / 3) * a ? sliceLenRaw : D.sliceLen,
     reverse: reverseRoll < 0.25 * a,

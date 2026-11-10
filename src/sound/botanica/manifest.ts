@@ -15,7 +15,8 @@ export type SampleRole =
   | 'glitchfx' // 偶發：glitch
   | 'kit' // 鼓：鼓組 loop
   | 'perc' // 鼓：打擊 loop
-  | 'keys'; // 鋼琴：Salamander 單音取樣
+  | 'keys' // 鋼琴：Salamander 單音取樣
+  | 'ostr'; // 弦樂：FL Studio Strings Section 單音
 
 export type Sample = {
   id: string;
@@ -25,7 +26,7 @@ export type Sample = {
   /** 原檔的調；無音高的素材記 C */
   sourceKey: KeyName;
   gainDb: number;
-  /** 原檔路徑，相對 ~/Downloads/Floral/ */
+  /** 原檔路徑：相對 ~/Downloads/Floral/；以 ~/ 開頭則是家目錄下的其他地方 */
   source: string;
   /** 轉檔時只取前幾秒 */
   trimSec?: number;
@@ -134,6 +135,21 @@ const KEYS: Sample[] = [2, 3, 4, 5]
     url: `${SALAMANDER}${name}.mp3`,
   }));
 
+/** FL Studio 內建「Strings Section」：C、F 各一個八度，3 秒 */
+const OSTR_DIR =
+  '~/Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section';
+const OSTR: Sample[] = ['C1', 'F1', 'C2', 'F2', 'C3', 'F3', 'C4', 'F4', 'C5', 'F5', 'C6'].map(
+  (name) => ({
+    id: `ostr-${name.toLowerCase()}`,
+    file: `ostr-${name.toLowerCase()}.mp3`,
+    role: 'ostr' as const,
+    sourceKey: 'C' as KeyName,
+    gainDb: 0,
+    source: `${OSTR_DIR}/OSTR ${name}.wav`,
+    midi: 12 * (Number(name[1]) + 1) + (name[0] === 'C' ? 0 : 5),
+  }),
+);
+
 export const SAMPLES: readonly Sample[] = [
   ...named(
     'bed',
@@ -182,6 +198,7 @@ export const SAMPLES: readonly Sample[] = [
   ...loops('kit', KIT),
   ...loops('perc', PERC),
   ...KEYS,
+  ...OSTR,
 ];
 
 export function samplesByRole(role: SampleRole): readonly Sample[] {

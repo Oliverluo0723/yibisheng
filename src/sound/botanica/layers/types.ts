@@ -22,7 +22,33 @@ export type BloomOpts = {
   gain: number;
 };
 
-export type GrainOpts = { shift: number; pan: number; reverse: boolean; gainDb: number };
+export type GrainOpts = {
+  shift: number;
+  pan: number;
+  reverse: boolean;
+  gainDb: number;
+  /** 長素材切片：從整段的這個比例處開始（0..1） */
+  offsetFrac?: number;
+  /** 長素材切片：播幾秒就停 */
+  durationSec?: number;
+};
+
+export type ChordOpts = {
+  attack: number;
+  /** 撐多久（秒），之後開始收 */
+  hold: number;
+  release: number;
+  /** 0..1 */
+  velocity: number;
+  pan: number;
+  lowpassHz: number;
+  reverbSend: number;
+};
+
+/** 弦樂拉長的和弦：每個音一個循環的顆粒播放器 */
+export interface PadLayer extends Layer {
+  chord(midis: readonly number[], opts: ChordOpts): void;
+}
 
 export interface BedLayer extends Layer {
   start(): void;

@@ -34,7 +34,8 @@ for (const s of SAMPLES) {
     bytes += statSync(dest).size;
     continue;
   }
-  const src = join(root, s.source);
+  // 以 ~/ 開頭的不在 Floral 裡（例如 FL Studio 內建素材）
+  const src = s.source.startsWith('~/') ? join(homedir(), s.source.slice(2)) : join(root, s.source);
   if (!existsSync(src)) {
     missing.push(s.source);
     continue;

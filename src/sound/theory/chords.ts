@@ -51,3 +51,25 @@ export function foldShift(semis: number, limit = 7): number {
 export function grainShift(keyShiftSemis: number, tone: number): number {
   return foldShift(keyShiftSemis + nearestOffset(tone));
 }
+
+export type Register = 'low' | 'mid' | 'high';
+const REGISTER_ROOT: Record<Register, number> = { low: 36, mid: 48, high: 60 };
+
+/**
+ * 把和弦音放進音域：根音落在該音域的起點那個八度裡（起點 ≤ 根音 < 起點 + 12），
+ * 其他音往上疊、由低到高。tones 是相對主音的 pitch class，第一個是根音。
+ */
+export function chordMidis(keyPc: number, tones: readonly number[], register: Register): number[] {
+  const base = REGISTER_ROOT[register];
+  const rootPc = (keyPc + (tones[0] ?? 0)) % 12;
+  const root = base + ((rootPc - (base % 12) + 12) % 12);
+  let prev = root;
+  return tones.map((t, i) => {
+    if (i === 0) return root;
+    const pc = (keyPc + t) % 12;
+    let m = prev + 1 + ((pc - ((prev + 1) % 12) + 12) % 12);
+    if (m - prev > 12) m -= 12;
+    prev = m;
+    return m;
+  });
+}

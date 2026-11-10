@@ -184,3 +184,22 @@ node scripts/convert-sounds.ts /別的/路徑  # 或指定來源
 | keys-fs5.mp3 | MIDI 78 | https://tonejs.github.io/audio/salamander/Fs5.mp3 |
 | keys-a5.mp3 | MIDI 81 | https://tonejs.github.io/audio/salamander/A5.mp3 |
 | keys-c6.mp3 | MIDI 84 | https://tonejs.github.io/audio/salamander/C6.mp3 |
+
+## FL Studio「Strings Section」（弦樂拉長的和弦）
+
+FL Studio Mobile 內建的 DirectWave 音色，11 個弦樂單音（C、F 各一個八度，3 秒），作品裡用顆粒循環中段當持續音。
+**授權：FL Studio 的內建素材允許用在自己的作品裡；放上公開網頁時原檔可被下載，是否算「散布素材」待使用者確認。確認前只留本機。**
+
+| 檔案 | 音高 | 原檔（家目錄下） |
+|---|---|---|
+| ostr-c1.mp3 | MIDI 24 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR C1.wav |
+| ostr-f1.mp3 | MIDI 29 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR F1.wav |
+| ostr-c2.mp3 | MIDI 36 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR C2.wav |
+| ostr-f2.mp3 | MIDI 41 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR F2.wav |
+| ostr-c3.mp3 | MIDI 48 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR C3.wav |
+| ostr-f3.mp3 | MIDI 53 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR F3.wav |
+| ostr-c4.mp3 | MIDI 60 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR C4.wav |
+| ostr-f4.mp3 | MIDI 65 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR F4.wav |
+| ostr-c5.mp3 | MIDI 72 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR C5.wav |
+| ostr-f5.mp3 | MIDI 77 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR F5.wav |
+| ostr-c6.mp3 | MIDI 84 | Documents/Image-Line/Downloads/FL Studio Mobile Factory Data/DirectWave Samples/Orchestral/Strings Section/OSTR C6.wav |
