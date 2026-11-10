@@ -63,7 +63,7 @@ export function createInkBrush(): Brush {
         stamp(s.x, s.y, s.width, s.pressure, 1);
       });
       // 幾乎沒動：原地積墨，筆寬略微擴張
-      if (n === 0 && !b.lifting && params.pool > 0) {
+      if (n === 0 && b.speed < 1 && !b.lifting && params.pool > 0) {
         stamp(b.x, b.y, b.width * (1 + params.pool * 0.3), 1, params.pool);
       }
     },

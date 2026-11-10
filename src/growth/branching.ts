@@ -8,6 +8,8 @@ export const TICK_MS = 1000 / 60;
 const MAX_TICKS_PER_STEP = 10;
 
 type Tip = {
+  /** 這株植物裡唯一的編號，分枝出來的新芽拿新編號 */
+  id: number;
   x: number;
   y: number;
   heading: number;
@@ -31,6 +33,7 @@ export class BranchingPlant {
   private _age = 0;
   private accumulator = 0;
   private tips: Tip[] = [];
+  private nextTipId = 0;
   private readonly params: GrowthParams;
   private readonly aspect: number;
   private readonly rng: () => number;
@@ -56,6 +59,11 @@ export class BranchingPlant {
     return this.tips
       .filter((t) => t.pending > 0)
       .map((t) => ({ x1: t.nx, y1: t.ny, x2: t.x, y2: t.y, depth: t.depth, born: this._age }));
+  }
+
+  /** 目前活著的芽尖位置（比例座標）。給「每支芽各自連續畫」的畫法用：id 不變就是同一支芽。 */
+  get liveTips(): { id: number; x: number; y: number; depth: number }[] {
+    return this.tips.map((t) => ({ id: t.id, x: t.x, y: t.y, depth: t.depth }));
   }
 
   /** 推進時間（任意 ms），內部以固定步長 tick；回傳這一步新發生的事件。 */
@@ -115,6 +123,7 @@ export class BranchingPlant {
 
       const half = params.spread / 2;
       born.push({
+        id: this.nextTipId++,
         x: t.x,
         y: t.y,
         nx: t.x,
@@ -155,7 +164,16 @@ export class BranchingPlant {
       // 法線：切線旋轉 90°，左右交替
       const side = i % 2 === 0 ? 1 : -1;
       const heading = Math.atan2(tx * side, -ty * side);
-      tips.push({ x: p.x, y: p.y, nx: p.x, ny: p.y, heading, depth: 0, pending: 0 });
+      tips.push({
+        id: this.nextTipId++,
+        x: p.x,
+        y: p.y,
+        nx: p.x,
+        ny: p.y,
+        heading,
+        depth: 0,
+        pending: 0,
+      });
     }
     return tips;
   }

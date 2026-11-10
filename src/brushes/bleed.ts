@@ -94,7 +94,7 @@ export function createBleedBrush(): Brush {
         const s = lerpSample(a, b, t);
         draw(s.x, s.y, (s.width / 2) * params.spread * (0.7 + 0.3 * s.pressure));
       });
-      if (n === 0 && !b.lifting) {
+      if (n === 0 && b.speed < 1 && !b.lifting) {
         dwell = Math.min(dwell + 1, 240);
         if (params.bloom > 0 && dwell % 3 === 0) {
           draw(

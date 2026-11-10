@@ -8,11 +8,13 @@ import { type Brush, direction, lerpSample } from './types';
  * 葉柄朝向莖、葉尖朝外。畫得慢葉子大，畫得快葉子小而稀。
  * 葉片可以染上一點目前的顏色，帶淡淡的陰影像壓在紙上。
  */
+/** 染色後的葉片快取，所有押花筆（包含每支分枝各自的筆）共用 */
+const tintCache = new Map<string, HTMLCanvasElement>();
+
 export function createPressedBrush(): Brush {
   const walker = new Walker();
   let side = 1;
   let dirPrev = { x: 1, y: 0 };
-  const tintCache = new Map<string, HTMLCanvasElement>();
   const params = { leafSize: 1, spacing: 1, angle: 55, tint: 0.25, stem: 1, shadow: 0.18, sets: 0 };
 
   function tinted(leaf: LeafSprite, index: number, color: RGB): HTMLCanvasElement {

@@ -1,10 +1,16 @@
 import p5 from 'p5';
-import { type Brush, type BrushEnv, createBrushes } from '../../src/brushes';
+import { BRUSH_FACTORIES, type Brush, type BrushEnv, createBrushes } from '../../src/brushes';
 import { type LeafSprite, loadAllLeaves } from '../../src/brushes/leaves';
 import { defaultPenParams, type PenSample, SpringPen } from '../../src/brushes/pen';
+import { defaultBranchStyle, PlantPainter } from '../../src/brushes/plantPainter';
 import { hexToRgb, type NipponColor, PALETTES } from '../../src/color/nippon';
+import { BranchingPlant } from '../../src/growth/branching';
+import { hashString } from '../../src/growth/rng';
+import { defaultGrowthParams } from '../../src/growth/types';
 import { drawPaper } from '../../src/render/paper';
-import { createPanel } from './panel';
+import { WebAudioEngine } from '../../src/sound/webaudio';
+import { StrokeRecorder } from '../../src/strokes/recorder';
+import { createPanel, type GrowState } from './panel';
 
 const PAPER_GRAIN_DOTS = 6000;
 const UNDO_LEVELS = 6;
@@ -12,6 +18,14 @@ const UNDO_LEVELS = 6;
 const brushes = createBrushes();
 const penParams = { ...defaultPenParams };
 const pen = new SpringPen(penParams);
+const grow: GrowState = {
+  enabled: true,
+  growth: { ...defaultGrowthParams },
+  branch: { ...defaultBranchStyle },
+  sound: { enabled: true, volume: 0.8 },
+};
+const engine = new WebAudioEngine(7);
+let audioStarted = false;
 const ui = {
   brush: 0,
   palette: 0,
@@ -42,6 +56,7 @@ const palette = () => PALETTES[ui.palette] ?? (PALETTES[0] as (typeof PALETTES)[
 const currentBrush = () => brushes[ui.brush] as Brush;
 
 type Active = {
+  brushIndex: number;
   brush: Brush;
   env: BrushEnv;
   last: PenSample;
@@ -53,8 +68,15 @@ type Active = {
 new p5((p: p5) => {
   let base: p5.Graphics;
   let live: p5.Graphics;
+  /** 用麥克筆這類「整筆半透明」的筆長出來的枝條，先畫在這層，長完才疊上去 */
+  let growLayer: p5.Graphics;
+  let growLayerDirty = false;
   let active: Active | null = null;
-  const undoStack: HTMLCanvasElement[] = [];
+  const recorder = new StrokeRecorder();
+  let painters: { painter: PlantPainter; alpha: number; seq: number }[] = [];
+  let plantSeq = 0;
+  /** 每個快照記下當時的植物編號，復原時把之後長出來的植物一起拿掉 */
+  const undoStack: { snap: HTMLCanvasElement; seq: number }[] = [];
 
   const ctxOf = (g: p5.Graphics | p5) => g.drawingContext as CanvasRenderingContext2D;
   const canvasOf = (g: p5.Graphics) => g.elt as unknown as HTMLCanvasElement;
@@ -73,24 +95,71 @@ new p5((p: p5) => {
     base = next;
     live?.remove();
     live = p.createGraphics(p.width, p.height);
+    growLayer?.remove();
+    growLayer = p.createGraphics(p.width, p.height);
+    growLayerDirty = false;
     document.body.classList.toggle('dark', palette().dark);
     document.body.style.background = palette().paper.hex;
   }
 
   /** 暫存層（麥克筆）以半透明 + 疊色模式畫到目標上 */
-  function compositeLive(target: CanvasRenderingContext2D, alpha: number) {
+  function compositeLayer(layer: p5.Graphics, target: CanvasRenderingContext2D, alpha: number) {
     target.save();
     target.globalAlpha = alpha;
     target.globalCompositeOperation = palette().dark ? 'screen' : 'multiply';
-    target.drawImage(canvasOf(live), 0, 0, p.width, p.height);
+    target.drawImage(canvasOf(layer), 0, 0, p.width, p.height);
     target.restore();
+  }
+
+  function makeEnv(color: NipponColor, ctx: CanvasRenderingContext2D): BrushEnv {
+    return {
+      ctx,
+      color: hexToRgb(color.hex),
+      inks: palette().inks.map((c) => hexToRgb(c.hex)),
+      dark: palette().dark,
+      noise: (x, y, z) => p.noise(x, y ?? 0, z ?? 0),
+      leaves,
+      size: penParams.size,
+    };
+  }
+
+  /** 放開後的這一筆變成一株植物，用同一支筆、同一個顏色長出分枝。 */
+  function addPlant(a: Active, stroke: ReturnType<StrokeRecorder['end']>) {
+    if (!stroke || stroke.points.length < 2) return;
+    const make = BRUSH_FACTORIES[a.brushIndex];
+    if (!make) return;
+    const plant = new BranchingPlant(
+      stroke,
+      { ...grow.growth },
+      hashString(stroke.id),
+      p.width / p.height,
+    );
+    const buffered = a.brush.buffered;
+    const env = { ...a.env, ctx: ctxOf(buffered ? growLayer : base) };
+    const painter = new PlantPainter(plant, make, { ...a.brush.params }, env, {
+      ...grow.branch,
+      size: penParams.size,
+      life: grow.growth.life,
+    });
+    painters.push({ painter, alpha: buffered?.alpha ?? 1, seq: plantSeq++ });
   }
 
   function finishStroke() {
     if (!active) return;
-    if (active.brush.buffered) compositeLive(ctxOf(base), active.brush.buffered.alpha);
+    if (active.brush.buffered) compositeLayer(live, ctxOf(base), active.brush.buffered.alpha);
+    const stroke = recorder.end();
+    if (grow.enabled) addPlant(active, stroke);
     active = null;
   }
+
+  /** 麥克筆類的枝條都長完了，就把暫存層疊進畫布 */
+  function bakeGrowLayerIfIdle() {
+    if (!growLayerDirty || painters.some((x) => x.painter.buffered)) return;
+    compositeLayer(growLayer, ctxOf(base), currentGrowAlpha);
+    growLayer.clear();
+    growLayerDirty = false;
+  }
+  let currentGrowAlpha = 1;
 
   function pushUndo() {
     const src = canvasOf(base);
@@ -98,14 +167,20 @@ new p5((p: p5) => {
     snap.width = src.width;
     snap.height = src.height;
     (snap.getContext('2d') as CanvasRenderingContext2D).drawImage(src, 0, 0);
-    undoStack.push(snap);
+    undoStack.push({ snap, seq: plantSeq });
     if (undoStack.length > UNDO_LEVELS) undoStack.shift();
   }
 
   function undo() {
     finishStroke();
-    const snap = undoStack.pop();
-    if (!snap) return;
+    const entry = undoStack.pop();
+    if (!entry) return;
+    const { snap, seq } = entry;
+    painters = painters.filter((x) => x.seq < seq);
+    if (!painters.some((x) => x.painter.buffered)) {
+      growLayer.clear();
+      growLayerDirty = false;
+    }
     const g = ctxOf(base);
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
@@ -115,6 +190,8 @@ new p5((p: p5) => {
 
   function clear() {
     finishStroke();
+    painters = [];
+    recorder.clear();
     undoStack.length = 0;
     newSheet();
   }
@@ -173,11 +250,20 @@ new p5((p: p5) => {
     renderHud();
   }
 
-  const panel = createPanel(penParams, brushes, {
+  function renderToggles() {
+    $('toggles').textContent =
+      `生長${grow.enabled ? '開' : '關'} · 聲音${grow.sound.enabled ? '開' : '關'}`;
+  }
+
+  const panel = createPanel(penParams, brushes, grow, {
     selectBrush,
     clear,
     undo,
     save: () => p.saveCanvas(`02-${currentBrush().name}-${Date.now()}`, 'png'),
+    onChange: () => {
+      engine.setVolume(grow.sound.volume);
+      renderToggles();
+    },
   });
 
   window.addEventListener('keydown', (ev) => {
@@ -197,6 +283,15 @@ new p5((p: p5) => {
     else if (k === 's') p.saveCanvas(`02-${currentBrush().name}-${Date.now()}`, 'png');
     else if (k === 'c') clear();
     else if (k === 'h') document.body.classList.toggle('hide-hud');
+    else if (k === 'g') {
+      grow.enabled = !grow.enabled;
+      for (const c of panel.gui.controllersRecursive()) c.updateDisplay();
+      renderToggles();
+    } else if (k === 'm') {
+      grow.sound.enabled = !grow.sound.enabled;
+      for (const c of panel.gui.controllersRecursive()) c.updateDisplay();
+      renderToggles();
+    }
   });
 
   // ---------- p5 ----------
@@ -205,12 +300,17 @@ new p5((p: p5) => {
     p.pixelDensity(Math.min(2, p.displayDensity()));
     newSheet();
     renderHud();
+    renderToggles();
   };
 
   const isOnCanvas = (ev: Event | undefined) => !ev || ev.target instanceof HTMLCanvasElement;
 
   p.mousePressed = (ev?: Event) => {
     if (!isOnCanvas(ev)) return;
+    if (!audioStarted) {
+      audioStarted = true;
+      void engine.start().then(() => engine.setVolume(grow.sound.volume));
+    }
     finishStroke();
     pushUndo();
     const brush = currentBrush();
@@ -218,18 +318,19 @@ new p5((p: p5) => {
     ui.lastColor = color;
     if (ui.auto) renderHud();
     if (brush.buffered) live.clear();
-    const env: BrushEnv = {
-      ctx: ctxOf(brush.buffered ? live : base),
-      color: hexToRgb(color.hex),
-      inks: palette().inks.map((c) => hexToRgb(c.hex)),
-      dark: palette().dark,
-      noise: (x, y, z) => p.noise(x, y ?? 0, z ?? 0),
-      leaves,
-      size: penParams.size,
-    };
+    const env = makeEnv(color, ctxOf(brush.buffered ? live : base));
     const first = pen.reset(p.mouseX, p.mouseY);
     brush.begin(env, first);
-    active = { brush, env, last: first, lifted: false, tx: p.mouseX, ty: p.mouseY };
+    recorder.begin(first.x, first.y, p.width, p.height, p.millis());
+    active = {
+      brushIndex: ui.brush,
+      brush,
+      env,
+      last: first,
+      lifted: false,
+      tx: p.mouseX,
+      ty: p.mouseY,
+    };
   };
 
   p.mouseReleased = () => {
@@ -245,10 +346,27 @@ new p5((p: p5) => {
       const s = active.lifted ? pen.step(active.tx, active.ty) : pen.step(p.mouseX, p.mouseY);
       active.brush.segment(active.env, active.last, s);
       active.last = s;
+      // 植物的主幹記錄筆尖實際走過的路（不是滑鼠），收筆漸細的尾巴不算
+      if (!active.lifted) recorder.extend(s.x, s.y, p.width, p.height, p.millis());
       if (active.lifted && (!active.brush.taper || pen.done)) finishStroke();
     }
+
+    const dt = Math.min(100, p.deltaTime);
+    for (const { painter, alpha } of painters) {
+      const events = painter.plant.step(dt);
+      painter.paint(p.width, p.height);
+      if (painter.buffered) {
+        growLayerDirty = true;
+        currentGrowAlpha = alpha;
+      }
+      if (grow.sound.enabled) for (const e of events) engine.onGrowth(e);
+    }
+    painters = painters.filter((x) => x.painter.alive);
+    bakeGrowLayerIfIdle();
+
     p.image(base, 0, 0);
-    if (active?.brush.buffered) compositeLive(ctxOf(p), active.brush.buffered.alpha);
+    if (growLayerDirty) compositeLayer(growLayer, ctxOf(p), currentGrowAlpha);
+    if (active?.brush.buffered) compositeLayer(live, ctxOf(p), active.brush.buffered.alpha);
   };
 
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;

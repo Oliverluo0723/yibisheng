@@ -9,15 +9,17 @@ import type { Brush } from './types';
 
 export type { Brush, BrushEnv } from './types';
 
-/** 七支筆，順序 = 鍵盤 1–7。 */
+/** 七支筆的建構函式，順序 = 鍵盤 1–7。每支分枝要各自一份筆的狀態時用。 */
+export const BRUSH_FACTORIES: (() => Brush)[] = [
+  createInkBrush,
+  createDryBrush,
+  createBleedBrush,
+  createPollenBrush,
+  createPastelBrush,
+  createMarkerBrush,
+  createPressedBrush,
+];
+
 export function createBrushes(): Brush[] {
-  return [
-    createInkBrush(),
-    createDryBrush(),
-    createBleedBrush(),
-    createPollenBrush(),
-    createPastelBrush(),
-    createMarkerBrush(),
-    createPressedBrush(),
-  ];
+  return BRUSH_FACTORIES.map((make) => make());
 }

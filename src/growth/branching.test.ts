@@ -105,3 +105,20 @@ test('single-point stroke does not throw', () => {
     for (const v of [s.x1, s.y1, s.x2, s.y2]) expect(Number.isFinite(v)).toBe(true);
   }
 });
+
+test('liveTips keep a stable id per tip, and new branches get new ids', () => {
+  const p = new BranchingPlant(stroke, { ...defaultGrowthParams, branchChance: 1, maxDepth: 2 }, 5);
+  const first = p.liveTips;
+  expect(new Set(first.map((t) => t.id)).size).toBe(first.length);
+  const before = new Map(first.map((t) => [t.id, t]));
+  for (let i = 0; i < 60; i++) p.step(TICK_MS);
+  const after = p.liveTips;
+  expect(after.length).toBeGreaterThan(first.length);
+  expect(new Set(after.map((t) => t.id)).size).toBe(after.length);
+  // 原本的芽還在，而且往外移動了
+  for (const t of after) {
+    const old = before.get(t.id);
+    if (old) expect(Math.hypot(t.x - old.x, t.y - old.y)).toBeGreaterThan(0);
+  }
+  expect(after.some((t) => !before.has(t.id) && t.depth > 0)).toBe(true);
+});
