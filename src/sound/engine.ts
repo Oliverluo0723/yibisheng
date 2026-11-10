@@ -9,4 +9,8 @@ export interface SoundEngine {
   onGrowth(e: GrowthEvent): void;
   /** 0..1 */
   setVolume(v: number): void;
+  /** 放開一筆、植物開始長；seed 是這一筆的種子（可選，舊引擎不用實作） */
+  onPlantStart?(seed: number): void;
+  /** 一株植物長完（可選） */
+  onPlantDone?(): void;
 }
