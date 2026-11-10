@@ -5,7 +5,7 @@ import type { Growth3DParams } from './branching3d';
  *
  * 像燒開水：熱度低時一筆只長少少幾枝（cold），往門檻漲的路上一筆比一筆多，
  * 過了門檻翻面（burst）：分枝、芽、葉一口氣變多、長得快。
- * 退潮：每株記住自己出生後看過的最高熱度，熱度從那裡掉下來多少就枯多少。
+ * 枯不在這裡：見 wither.ts 的乾燥時鐘。
  */
 export type ArcParams = {
   /** 接不接熱度；關了就是以前的樣子（每一筆都一樣） */
@@ -16,10 +16,6 @@ export type ArcParams = {
   cold: number;
   /** 翻面後，量是基準的幾倍 */
   burst: number;
-  /** 枯跟不跟熱度；關了用面板的「枯」滑桿 */
-  witherAuto: boolean;
-  /** 熱度從峰值掉到幾成就全枯：0.7 = 掉到峰值的三成時全枯 */
-  witherSpan: number;
   /** 熱度半衰期（ms）：停手後多久退一半 */
   halfLifeMs: number;
 };
@@ -29,8 +25,6 @@ export const defaultArcParams: ArcParams = {
   threshold: 0.6,
   cold: 0.5,
   burst: 1.8,
-  witherAuto: true,
-  witherSpan: 0.7,
   halfLifeMs: 20000,
 };
 
@@ -70,16 +64,4 @@ export function arcGrowth(base: Growth3DParams, heat: number, arc: ArcParams): G
     maxDepth: Math.max(1, base.maxDepth + depthShift),
     speed: base.speed * (0.6 + 0.4 * a),
   };
-}
-
-/**
- * 退潮：這株出生後看過的最高熱度 peak，現在熱度 heat → 枯 0..1。
- * 熱度還在峰值 = 0；掉到 peak × (1 − witherSpan) = 1。再畫、熱回來會復原。
- */
-export function witherFor(peak: number, heat: number, arc: ArcParams): number {
-  if (!arc.enabled || !arc.witherAuto) return 0;
-  // 跨度以峰值為基準，但峰值很低時不要縮到趨近零（一出生就全枯）
-  const span = Math.max(0.05, arc.witherSpan) * Math.max(peak, 0.05);
-  const t = clamp01((clamp01(peak) - clamp01(heat)) / span);
-  return t * t * (3 - 2 * t);
 }

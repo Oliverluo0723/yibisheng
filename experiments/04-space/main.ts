@@ -3,13 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { loadAllLeaves } from '../../src/brushes/leaves';
 import { defaultPenParams, type PenSample, SpringPen } from '../../src/brushes/pen';
 import { type NipponColor, PALETTES } from '../../src/color/nippon';
-import {
-  ARC_HEAT_BUMP,
-  arcGrowth,
-  arcLevel,
-  defaultArcParams,
-  witherFor,
-} from '../../src/growth/arc';
+import { ARC_HEAT_BUMP, arcGrowth, arcLevel, defaultArcParams } from '../../src/growth/arc';
 import {
   defaultGrowth3DParams,
   type Growth3DEvent,
@@ -18,6 +12,7 @@ import {
 } from '../../src/growth/branching3d';
 import { hashString, mulberry32 } from '../../src/growth/rng';
 import { planGrass, planLilac, planLily, planStock } from '../../src/growth/species3d';
+import { PlantWither, WitherClock } from '../../src/growth/wither';
 import { StableCount } from '../../src/input/fingers';
 import { HandTracker } from '../../src/input/hand';
 import {
@@ -28,13 +23,14 @@ import {
 } from '../../src/render/backdrop';
 import { orbitOffset } from '../../src/render/orbit';
 import { createBotanicaEngine, freshBotanicaParams } from '../../src/sound/botanica';
-import type { SoundEngine } from '../../src/sound/engine';
+import type { SoundEngine, WitherEvent } from '../../src/sound/engine';
 import { Heat } from '../../src/sound/theory/heat';
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
 import { createUI, SPECIES, type State } from './panel';
 import {
+  defaultFallStyle,
   defaultLeafStyle,
   defaultStemStyle,
   type LeafTex,
@@ -49,7 +45,8 @@ const state: State = {
   species: { kind: 0, useSwatch: false, density: 1, height: 1 },
   leaf: { ...defaultLeafStyle },
   stem: { ...defaultStemStyle },
-  wither: 0,
+  wither: { auto: true, manual: 0, graceSec: 25, heatThreshold: 0.5, fullSec: 100 },
+  fall: { ...defaultFallStyle },
   arc: { ...defaultArcParams },
   view: { autoRotate: true, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
   sound: { enabled: true, volume: 0.8, engine: 'botanica', botanica: freshBotanicaParams() },
@@ -77,6 +74,10 @@ const backdrops = new Map<string, Backdrop>();
  * 也不受聲音開關影響。放開一筆、長出一枝、一片葉都加一點；停手後以半衰期退。
  */
 const heat = new Heat({ halfLifeMs: state.arc.halfLifeMs });
+/** 枯的時鐘：停手夠久、熱度夠低才走；每株從出生算，掉了的不回來 */
+const witherClock = new WitherClock();
+// 除錯：在 console 看熱度與乾燥時鐘（window.__exp04）
+Object.assign(window as unknown as Record<string, unknown>, { __exp04: { heat, witherClock } });
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const status = (msg: string) => {
@@ -222,8 +223,8 @@ type Item = {
   grower?: Grower;
   wasAlive?: boolean;
   voice?: string;
-  /** 這株出生後看過的最高熱度：熱度從這裡掉下來多少就枯多少 */
-  peak: number;
+  /** 押花樹才有：這株的枯（從出生時的乾燥時間算起） */
+  wither?: PlantWither;
 };
 let items: Item[] = [];
 
@@ -282,7 +283,7 @@ function beginDraw(x: number, y: number): boolean {
   const view = new PlantView(color, leafTex, { ...state.leaf }, { ...state.stem });
   view.groundY = GROUND_Y;
   scene.add(view.group);
-  items.push({ view, peak: heat.value(performance.now()) });
+  items.push({ view });
   const first = pen.reset(x, y);
   drawing = {
     view,
@@ -436,10 +437,11 @@ function finishDrawing() {
   // 這一筆算進熱度；放開那一刻的熱度決定它長多少（押花樹）
   const h = heat.value(now);
   heat.add(now, ARC_HEAT_BUMP.plant);
-  item.peak = Math.max(item.peak, heat.value(now));
+  witherClock.activity(now);
   if (d.kind === 0) {
     const params = arcGrowth(state.growth, h, state.arc);
     d.view.plant = new Plant3D(d.points, params, seed, d.normal);
+    item.wither = new PlantWither(witherClock.seconds);
     engine().onPlantStart?.(seed, item.voice);
     if (arcLevel(h, state.arc).burst) status('翻面：這一筆長滿');
     return;
@@ -459,6 +461,7 @@ function stepDrawing() {
   const d = drawing;
   if (!d) return;
   const s = d.lifted ? pen.step(d.tx, d.ty) : pen.step(mouseX, mouseY);
+  if (!d.lifted) witherClock.activity(performance.now());
   const w = screenToPlane(s.x, s.y, d.plane);
   if (w) {
     // 押花樹的主莖粗；草和花的那一筆只是細細的「種下去的線」
@@ -581,16 +584,19 @@ const heatEl = {
   num: document.querySelector('#heat .num') as HTMLElement,
 };
 let heatShown = -1;
-function renderHeat(h: number) {
+let dryShown = -1;
+function renderHeat(h: number, drySeconds: number) {
   const arc = state.arc;
   heatEl.root.hidden = !arc.enabled;
   if (!arc.enabled) return;
   const shown = Math.round(h * 100);
-  if (shown === heatShown) return;
+  const dry = Math.floor(drySeconds);
+  if (shown === heatShown && dry === dryShown) return;
   heatShown = shown;
+  dryShown = dry;
   heatEl.fill.style.width = `${shown}%`;
   heatEl.tick.style.left = `${arc.threshold * 100}%`;
-  heatEl.num.textContent = (shown / 100).toFixed(2);
+  heatEl.num.textContent = `${(shown / 100).toFixed(2)}${dry > 0 ? `　枯 ${dry}s` : ''}`;
   heatEl.root.classList.toggle('burst', h >= arc.threshold);
 }
 
@@ -710,33 +716,40 @@ renderer.setAnimationLoop((now: number) => {
   stepHand(now);
   stepOrbit(dt, now);
   stepDrawing();
+  // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
+  const screen01 = (at: V3) => ({
+    x: Math.min(1, Math.max(0, (at.x + 1.5) / 3)),
+    y: Math.min(1, Math.max(0, 0.5 - at.y / 3)),
+  });
   const sound = (events: Growth3DEvent[], voice: string | undefined) => {
     for (const e of events)
       heat.add(now, e.kind === 'leaf' ? ARC_HEAT_BUMP.leaf : ARC_HEAT_BUMP.branch);
+    if (events.length > 0) witherClock.activity(now);
     if (!state.sound.enabled) return;
     for (const e of events) {
-      // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
-      engine().onGrowth(
-        {
-          kind: e.kind,
-          x: Math.min(1, Math.max(0, (e.at.x + 1.5) / 3)),
-          y: Math.min(1, Math.max(0, 0.5 - e.at.y / 3)),
-          depth: e.depth,
-          age: e.age,
-        },
-        voice,
-      );
+      engine().onGrowth({ kind: e.kind, ...screen01(e.at), depth: e.depth, age: e.age }, voice);
     }
   };
+  witherClock.opts.graceMs = state.wither.graceSec * 1000;
+  witherClock.opts.heatThreshold = state.wither.heatThreshold;
+  const dry = witherClock.tick(now, heat.value(now));
   for (const it of items) {
     const p = it.view.plant;
     if (p?.alive) sound(p.step(dt), it.voice);
-    // 枯：熱度從這株看過的峰值掉下來多少就枯多少；關掉就用面板的滑桿
-    const h = heat.value(now);
-    it.peak = Math.max(it.peak, h);
-    it.view.wither =
-      state.arc.enabled && state.arc.witherAuto ? witherFor(it.peak, h, state.arc) : state.wither;
-    it.view.sync(now);
+    // 枯：跟著乾燥時鐘（只增不減）；「枯跟熱度」關掉時只看手動滑桿（除錯，可來回拉）
+    if (it.wither) {
+      it.view.wither = state.wither.auto
+        ? it.wither.update(dry, state.wither.fullSec, state.wither.manual)
+        : state.wither.manual;
+    }
+    it.view.fall = state.fall;
+    const fell = it.view.sync(now);
+    if (state.sound.enabled) {
+      for (const e of fell) {
+        const ev: WitherEvent = { kind: e.kind, ...screen01(e.at), depth: e.depth };
+        engine().onWither?.(ev, it.voice);
+      }
+    }
     if (it.grower?.alive) sound(it.grower.step(now), it.voice);
     // 長完那一刻通知聲音（草一直隨風晃、永遠 alive，不會觸發）
     const alive = Boolean(p?.alive || it.grower?.alive);
@@ -746,7 +759,7 @@ renderer.setAnimationLoop((now: number) => {
   // 畫畫時、剛轉過鏡頭的 3 秒內不自轉
   controls.autoRotate = state.view.autoRotate && !drawing && now - lastInteract > 3000;
   controls.update();
-  renderHeat(heat.value(now));
+  renderHeat(heat.value(now), dry);
   renderer.render(scene, camera);
 });
 

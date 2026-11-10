@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { arcGrowth, arcLevel, defaultArcParams, witherFor } from './arc';
+import { arcGrowth, arcLevel, defaultArcParams } from './arc';
 import { defaultGrowth3DParams } from './branching3d';
 
 const arc = { ...defaultArcParams };
@@ -36,22 +36,4 @@ test('生長參數跟著倍率走：冷時芽少、層淺、慢；翻面時芽�
   expect(hot.life).toBe(base.life);
   // 不動傳進來的 base
   expect(base).toEqual(defaultGrowth3DParams);
-});
-
-test('退潮：熱度在峰值不枯，掉到峰值 × (1 − 跨度) 全枯，中間平滑', () => {
-  expect(witherFor(0.8, 0.8, arc)).toBe(0);
-  expect(witherFor(0.8, 0.9, arc)).toBe(0);
-  expect(witherFor(0.8, 0.8 * (1 - arc.witherSpan), arc)).toBe(1);
-  expect(witherFor(0.8, 0, arc)).toBe(1);
-  const mid = witherFor(0.8, 0.8 * (1 - arc.witherSpan / 2), arc);
-  expect(mid).toBeGreaterThan(0.4);
-  expect(mid).toBeLessThan(0.6);
-  // 兩種關法都回 0
-  expect(witherFor(0.8, 0, { ...arc, witherAuto: false })).toBe(0);
-  expect(witherFor(0.8, 0, { ...arc, enabled: false })).toBe(0);
-});
-
-test('峰值很低（剛開始畫）也不會一出生就枯', () => {
-  expect(witherFor(0.02, 0.02, arc)).toBe(0);
-  expect(witherFor(0, 0, arc)).toBe(0);
 });

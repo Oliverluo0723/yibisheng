@@ -17,7 +17,7 @@ import {
   thumbs,
   toggle,
 } from '../../src/ui/panels';
-import type { LeafStyle, StemStyle } from './plantView';
+import type { FallStyle, LeafStyle, StemStyle } from './plantView';
 
 export type State = {
   growth: Growth3DParams;
@@ -26,8 +26,16 @@ export type State = {
   species: { kind: number; useSwatch: boolean; density: number; height: number };
   leaf: LeafStyle;
   stem: StemStyle;
-  /** 枯 0..1（草稿：「枯跟熱度」關掉時用這個滑桿手動拉） */
-  wither: number;
+  /** 枯：停手 graceSec 秒且熱度低於 heatThreshold 才開始走，fullSec 秒掉光；manual > 0 時取大（除錯用） */
+  wither: {
+    auto: boolean;
+    manual: number;
+    graceSec: number;
+    heatThreshold: number;
+    fullSec: number;
+  };
+  /** 落下的感覺 */
+  fall: FallStyle;
   /** 起伏（草稿）：熱度決定每一筆長多少、停手冷了就枯 */
   arc: ArcParams;
   view: { autoRotate: boolean; rotateSpeed: number; fog: number; shadow: number };
@@ -197,9 +205,14 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
       slider(panel, '冷時量（成）', s.arc, 'cold', 0.1, 1, 0.05, changed, parent);
       slider(panel, '翻面後量（倍）', s.arc, 'burst', 1, 4, 0.1, changed, parent);
       slider(panel, '熱度半衰期 ms', s.arc, 'halfLifeMs', 3000, 90000, 1000, changed, parent);
-      toggle(panel, '枯跟熱度（停手就退）', s.arc, 'witherAuto', changed, parent);
-      slider(panel, '退潮跨度', s.arc, 'witherSpan', 0.2, 1, 0.05, changed, parent);
-      slider(panel, '枯（手動，上面關掉才有用）', s, 'wither', 0, 1, 0.005, changed, parent);
+      section(panel, '枯：停手夠久、熱度退了才開始，掉了的不回來', parent);
+      toggle(panel, '枯跟熱度', s.wither, 'auto', changed, parent);
+      slider(panel, '停手幾秒開始枯', s.wither, 'graceSec', 5, 90, 1, changed, parent);
+      slider(panel, '熱度門檻', s.wither, 'heatThreshold', 0, 1, 0.01, changed, parent);
+      slider(panel, '全枯幾秒', s.wither, 'fullSec', 20, 300, 5, changed, parent);
+      slider(panel, '落葉速度', s.fall, 'leafFall', 0.1, 1.5, 0.01, changed, parent);
+      slider(panel, '斷枝翻滾', s.fall, 'tumble', 0, 3, 0.05, changed, parent);
+      slider(panel, '枯（手動，除錯）', s.wither, 'manual', 0, 1, 0.005, changed, parent);
       section(panel, '葉與枝', parent);
       slider(panel, '葉大小', s.leaf, 'size', 0.03, 0.4, 0.005, changed, parent);
       slider(panel, '每幾段一葉', s.growth, 'leafEvery', 1, 8, 1, changed, parent);
