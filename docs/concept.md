@@ -1,8 +1,8 @@
 # 專案發想雛形：p5.js × Botanica 互動視覺作品
 
-> 狀態：發想階段，還沒開始實作
+> 狀態：**第一版（v1）完成**，git tag `v1`。第二版討論見 [handoff-v2.md](handoff-v2.md)
 > 建立日期：2026-11-10
-> 相關研究：[botanica-research.md](botanica-research.md)
+> 相關研究：[botanica-research.md](botanica-research.md)、[sound-libraries.md](sound-libraries.md)、[inkfield-tech-notes.md](inkfield-tech-notes.md)
 
 ---
 
