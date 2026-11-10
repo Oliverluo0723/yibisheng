@@ -13,12 +13,15 @@ export type BranchStyle = {
   life: number;
   /** 芽尖至少移動幾 px 才畫一次，避免每幀只動零點幾 px 時筆刷原地堆積 */
   minMove: number;
+  /** 每根枝往末端收細多少 0..1（長到底時剩 1 − tipTaper） */
+  tipTaper: number;
 };
 
 export const defaultBranchStyle: Omit<BranchStyle, 'size' | 'life'> = {
   width: 0.55,
   ageThin: 0.5,
   minMove: 2,
+  tipTaper: 0.6,
 };
 
 /**
@@ -50,7 +53,11 @@ export class PlantPainter {
       const y = t.y * h;
       const width = Math.max(
         0.6,
-        style.size * style.width * 0.8 ** t.depth * (1 - style.ageThin * age),
+        style.size *
+          style.width *
+          0.8 ** t.depth *
+          (1 - style.ageThin * age) *
+          (1 - style.tipTaper * t.progress),
       );
       const st = this.tips.get(t.id);
       if (!st) {

@@ -41,6 +41,7 @@ test('each tip gets its own brush and is drawn as one continuous line', () => {
     ageThin: 0.5,
     life: defaultGrowthParams.life,
     minMove: 2,
+    tipTaper: 0.6,
   });
   for (let f = 0; f < 600 && plant.alive; f++) {
     plant.step(TICK_MS);

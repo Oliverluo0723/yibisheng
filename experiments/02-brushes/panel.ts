@@ -143,12 +143,20 @@ export function createPanel(
   slider(growPanel, '分岔機率', g, 'branchChance', 0, 1, 0.01, changed);
   slider(growPanel, '分岔夾角', g, 'spread', 0.1, 2.5, 0.05, changed);
   slider(growPanel, '彎曲', g, 'noise', 0, 1.5, 0.05, changed);
+  slider(growPanel, '捲', g, 'curl', 0, 1.5, 0.05, changed);
+  slider(growPanel, '向光', g, 'tropism', 0, 1, 0.01, changed);
+  slider(growPanel, '光的方向', g, 'lightAngle', -Math.PI, Math.PI, 0.05, changed);
+  slider(growPanel, '主從', g, 'apical', 0, 0.5, 0.01, changed);
+  slider(growPanel, '伸展', g, 'reach', 0.03, 0.6, 0.01, changed);
+  slider(growPanel, '越深越短', g, 'reachDecay', 0.3, 1, 0.01, changed);
+  slider(growPanel, '起始亂度', g, 'seedJitter', 0, 1.5, 0.05, changed);
   slider(growPanel, '最深層數', g, 'maxDepth', 1, 8, 1, changed);
   slider(growPanel, '生命 ms', g, 'life', 1000, 20000, 250, changed);
   slider(growPanel, '起始芽數', g, 'tipsPerStroke', 1, 20, 1, changed);
   slider(growPanel, '芽上限', g, 'maxTips', 10, 800, 10, changed);
   slider(growPanel, '枝條粗細', grow.branch, 'width', 0.1, 1.5, 0.01, changed);
   slider(growPanel, '越老越細', grow.branch, 'ageThin', 0, 1, 0.01, changed);
+  slider(growPanel, '末端收細', grow.branch, 'tipTaper', 0, 1, 0.01, changed);
 
   // ---------- 尖 ----------
   const penPanel = new Panel({

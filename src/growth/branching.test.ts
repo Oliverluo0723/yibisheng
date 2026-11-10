@@ -45,11 +45,13 @@ test('respects maxTips', () => {
     { ...defaultGrowthParams, branchChance: 1, maxDepth: 8, maxTips: 20, tipsPerStroke: 6 },
     9,
   );
-  let branches = 0;
+  let peak = 0;
   for (let i = 0; i < 60; i++) {
-    branches += p.step(50).filter((e) => e.kind === 'branch').length;
+    p.step(50);
+    peak = Math.max(peak, p.liveTips.length);
   }
-  expect(branches).toBeLessThanOrEqual(20 - 6); // 起始 6 芽 + 分岔 ≤ 20
+  expect(peak).toBeGreaterThan(6); // 有分岔
+  expect(peak).toBeLessThanOrEqual(20); // 同時活著的芽不超過上限
 });
 
 test('growth is independent of how dt is chunked (fixed timestep)', () => {
@@ -63,7 +65,12 @@ test('growth is independent of how dt is chunked (fixed timestep)', () => {
 
 test('segments are isotropic in pixel space when an aspect ratio is given', () => {
   const aspect = 2; // 畫布寬是高的兩倍
-  const p = new BranchingPlant(stroke, { ...defaultGrowthParams, noise: 0 }, 5, aspect);
+  const p = new BranchingPlant(
+    stroke,
+    { ...defaultGrowthParams, noise: 0, curl: 0, tropism: 0 }, // 不轉彎，段才是直的
+    5,
+    aspect,
+  );
   for (let i = 0; i < 60; i++) p.step(50);
   expect(p.segments.length).toBeGreaterThan(10);
   for (const s of p.segments) {
@@ -121,4 +128,41 @@ test('liveTips keep a stable id per tip, and new branches get new ids', () => {
     if (old) expect(Math.hypot(t.x - old.x, t.y - old.y)).toBeGreaterThan(0);
   }
   expect(after.some((t) => !before.has(t.id) && t.depth > 0)).toBe(true);
+});
+
+test('tropism turns every tip toward the light', () => {
+  const p = new BranchingPlant(
+    stroke,
+    { ...defaultGrowthParams, noise: 0, curl: 0, tropism: 1, lightAngle: -Math.PI / 2, reach: 1 },
+    4,
+  );
+  for (let i = 0; i < 120; i++) p.step(TICK_MS); // 2 秒
+  expect(p.alive).toBe(true);
+  // 不管一開始朝哪邊，最後都在往上（y 變小）
+  for (const t of p.liveTips) expect(t.y).toBeLessThan(0.5);
+  const last = p.segments.slice(-p.liveTips.length);
+  for (const s of last) expect(s.y2).toBeLessThan(s.y1);
+});
+
+test('tips stop one by one when their reach is used up, before life ends', () => {
+  const p = new BranchingPlant(
+    stroke,
+    { ...defaultGrowthParams, branchChance: 0, reach: 0.03, life: 60000 },
+    8,
+  );
+  const leafAges: number[] = [];
+  for (let i = 0; i < 300 && p.alive; i++) {
+    for (const e of p.step(TICK_MS)) if (e.kind === 'leaf') leafAges.push(e.age);
+  }
+  expect(p.alive).toBe(false);
+  expect(p.age).toBeLessThan(60000);
+  expect(leafAges).toHaveLength(defaultGrowthParams.tipsPerStroke);
+  expect(new Set(leafAges).size).toBeGreaterThan(1); // 不是同一刻全停
+});
+
+test('progress goes 0 → 1 over a tip life', () => {
+  const p = new BranchingPlant(stroke, { ...defaultGrowthParams, branchChance: 0 }, 6);
+  expect(p.liveTips.every((t) => t.progress === 0)).toBe(true);
+  p.step(2000);
+  expect(p.liveTips.every((t) => t.progress > 0 && t.progress < 1)).toBe(true);
 });

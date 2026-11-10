@@ -25,6 +25,13 @@ export function createPanel(state: PanelState, actions: PanelActions): GUI {
   g.add(state.growth, 'branchChance', 0, 1, 0.01).name('分岔機率');
   g.add(state.growth, 'spread', 0.1, 2.5, 0.05).name('分岔夾角');
   g.add(state.growth, 'noise', 0, 1.5, 0.05).name('彎曲雜訊');
+  g.add(state.growth, 'curl', 0, 1.5, 0.05).name('捲');
+  g.add(state.growth, 'tropism', 0, 1, 0.01).name('向光');
+  g.add(state.growth, 'lightAngle', -Math.PI, Math.PI, 0.05).name('光的方向');
+  g.add(state.growth, 'apical', 0, 0.5, 0.01).name('主從');
+  g.add(state.growth, 'reach', 0.03, 0.6, 0.01).name('伸展');
+  g.add(state.growth, 'reachDecay', 0.3, 1, 0.01).name('越深越短');
+  g.add(state.growth, 'seedJitter', 0, 1.5, 0.05).name('起始亂度');
   g.add(state.growth, 'maxDepth', 1, 8, 1).name('最深層數');
   g.add(state.growth, 'life', 1000, 20000, 250).name('生命 (ms)');
   g.add(state.growth, 'tipsPerStroke', 1, 20, 1).name('起始芽數');
