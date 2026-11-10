@@ -79,6 +79,45 @@
       #keys a { color: inherit; }
       #toggles { margin-top: 4px; letter-spacing: 0.3em; }
       #status { right: 16px; bottom: 14px; font-size: 12px; color: var(--hud-soft); pointer-events: none; }
+      /* 熱度（草稿）：畫面正上方一條細線，越熱越長；小刻度是翻面門檻，過了整條變實 */
+      #heat {
+        left: 50%;
+        top: 58px;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        color: var(--hud-soft);
+        pointer-events: none;
+      }
+      #heat .track {
+        position: relative;
+        width: 180px;
+        height: 3px;
+        background: color-mix(in srgb, var(--hud-soft) 25%, transparent);
+        border-radius: 2px;
+        overflow: visible;
+      }
+      #heat .fill {
+        height: 100%;
+        width: 0;
+        background: var(--hud-soft);
+        border-radius: 2px;
+        transition: width 0.15s;
+      }
+      #heat .tick {
+        position: absolute;
+        top: -4px;
+        width: 1px;
+        height: 11px;
+        background: var(--hud);
+        opacity: 0.6;
+      }
+      #heat .num { font-variant-numeric: tabular-nums; min-width: 2.6em; text-align: left; letter-spacing: 0; }
+      #heat.burst .fill { background: var(--hud); }
+      #heat.burst .num { color: var(--hud); font-weight: 600; }
       /* 手勢：手指位置的圈圈（捏下去變實心）與右下角的鏡像小畫面 */
       .hand-cursor {
         position: fixed;
@@ -120,6 +159,11 @@
       <div id="color-name"></div>
     </div>
     <div id="status" class="hud"></div>
+    <div id="heat" class="hud">
+      <span>熱</span>
+      <span class="track"><span class="fill"></span><span class="tick"></span></span>
+      <span class="num">0.00</span>
+    </div>
     <script type="module" src="./main.ts"></script>
     <script type="module">
       import { mountModeNav } from '../../src/ui/modeNav.ts';

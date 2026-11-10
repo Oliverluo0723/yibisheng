@@ -10,7 +10,8 @@ const MAX_ENERGY = 5;
 export class Heat {
   private energy = 0;
   private at = 0;
-  private readonly halfLifeMs: number;
+  /** 半衰期（ms）；可以中途改，之後的衰減用新值 */
+  halfLifeMs: number;
 
   constructor(opts: { halfLifeMs?: number } = {}) {
     this.halfLifeMs = opts.halfLifeMs ?? 20000;

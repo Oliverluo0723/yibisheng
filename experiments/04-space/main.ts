@@ -4,6 +4,13 @@ import { loadAllLeaves } from '../../src/brushes/leaves';
 import { defaultPenParams, type PenSample, SpringPen } from '../../src/brushes/pen';
 import { type NipponColor, PALETTES } from '../../src/color/nippon';
 import {
+  ARC_HEAT_BUMP,
+  arcGrowth,
+  arcLevel,
+  defaultArcParams,
+  witherFor,
+} from '../../src/growth/arc';
+import {
   defaultGrowth3DParams,
   type Growth3DEvent,
   Plant3D,
@@ -22,6 +29,7 @@ import {
 import { orbitOffset } from '../../src/render/orbit';
 import { createBotanicaEngine, freshBotanicaParams } from '../../src/sound/botanica';
 import type { SoundEngine } from '../../src/sound/engine';
+import { Heat } from '../../src/sound/theory/heat';
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
@@ -42,6 +50,7 @@ const state: State = {
   leaf: { ...defaultLeafStyle },
   stem: { ...defaultStemStyle },
   wither: 0,
+  arc: { ...defaultArcParams },
   view: { autoRotate: true, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
   sound: { enabled: true, volume: 0.8, engine: 'botanica', botanica: freshBotanicaParams() },
   bg: { choice: BG_PAPER },
@@ -63,6 +72,11 @@ function syncSound() {
 }
 let leafTex: LeafTex[] = [];
 const backdrops = new Map<string, Backdrop>();
+/**
+ * 畫面自己的熱度（草稿）：和聲音引擎同一套衰減，但權重不同（筆重、枝葉輕，見 ARC_HEAT_BUMP），
+ * 也不受聲音開關影響。放開一筆、長出一枝、一片葉都加一點；停手後以半衰期退。
+ */
+const heat = new Heat({ halfLifeMs: state.arc.halfLifeMs });
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const status = (msg: string) => {
@@ -203,7 +217,14 @@ type Drawing = {
 let drawing: Drawing | null = null;
 /** 每一筆：畫出來的主莖（PlantView）+ 放開後長出的東西 */
 /** voice = 這株的植物名，聲音引擎用它決定「一種植物一種聲音」 */
-type Item = { view: PlantView; grower?: Grower; wasAlive?: boolean; voice?: string };
+type Item = {
+  view: PlantView;
+  grower?: Grower;
+  wasAlive?: boolean;
+  voice?: string;
+  /** 這株出生後看過的最高熱度：熱度從這裡掉下來多少就枯多少 */
+  peak: number;
+};
 let items: Item[] = [];
 
 status('葉片素材載入中…');
@@ -261,7 +282,7 @@ function beginDraw(x: number, y: number): boolean {
   const view = new PlantView(color, leafTex, { ...state.leaf }, { ...state.stem });
   view.groundY = GROUND_Y;
   scene.add(view.group);
-  items.push({ view });
+  items.push({ view, peak: heat.value(performance.now()) });
   const first = pen.reset(x, y);
   drawing = {
     view,
@@ -412,9 +433,15 @@ function finishDrawing() {
   const tint = sp.useSwatch ? d.color : undefined;
   const fp = { density: sp.density, height: sp.height };
   item.voice = SPECIES[d.kind]?.name;
+  // 這一筆算進熱度；放開那一刻的熱度決定它長多少（押花樹）
+  const h = heat.value(now);
+  heat.add(now, ARC_HEAT_BUMP.plant);
+  item.peak = Math.max(item.peak, heat.value(now));
   if (d.kind === 0) {
-    d.view.plant = new Plant3D(d.points, { ...state.growth }, seed, d.normal);
+    const params = arcGrowth(state.growth, h, state.arc);
+    d.view.plant = new Plant3D(d.points, params, seed, d.normal);
     engine().onPlantStart?.(seed, item.voice);
+    if (arcLevel(h, state.arc).burst) status('翻面：這一筆長滿');
     return;
   }
   let grower: Grower;
@@ -546,6 +573,26 @@ function renderToggles() {
   $('toggles').textContent =
     `生長${state.grow.enabled ? '開' : '關'} · 聲音${state.sound.enabled ? '開' : '關'} · 自轉${state.view.autoRotate ? '開' : '關'}`;
 }
+/** 正上方的熱度條：越熱越長，刻度是翻面門檻，過了整條變實 */
+const heatEl = {
+  root: $('heat'),
+  fill: document.querySelector('#heat .fill') as HTMLElement,
+  tick: document.querySelector('#heat .tick') as HTMLElement,
+  num: document.querySelector('#heat .num') as HTMLElement,
+};
+let heatShown = -1;
+function renderHeat(h: number) {
+  const arc = state.arc;
+  heatEl.root.hidden = !arc.enabled;
+  if (!arc.enabled) return;
+  const shown = Math.round(h * 100);
+  if (shown === heatShown) return;
+  heatShown = shown;
+  heatEl.fill.style.width = `${shown}%`;
+  heatEl.tick.style.left = `${arc.threshold * 100}%`;
+  heatEl.num.textContent = (shown / 100).toFixed(2);
+  heatEl.root.classList.toggle('burst', h >= arc.threshold);
+}
 
 const panel = createUI(state, penParams, {
   hand: () => ui.hand,
@@ -562,6 +609,8 @@ const panel = createUI(state, penParams, {
     applyLook();
     renderHud();
     renderToggles();
+    heat.halfLifeMs = state.arc.halfLifeMs;
+    heatShown = -1;
   },
   undo,
   save,
@@ -662,6 +711,8 @@ renderer.setAnimationLoop((now: number) => {
   stepOrbit(dt, now);
   stepDrawing();
   const sound = (events: Growth3DEvent[], voice: string | undefined) => {
+    for (const e of events)
+      heat.add(now, e.kind === 'leaf' ? ARC_HEAT_BUMP.leaf : ARC_HEAT_BUMP.branch);
     if (!state.sound.enabled) return;
     for (const e of events) {
       // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
@@ -680,7 +731,11 @@ renderer.setAnimationLoop((now: number) => {
   for (const it of items) {
     const p = it.view.plant;
     if (p?.alive) sound(p.step(dt), it.voice);
-    it.view.wither = state.wither;
+    // 枯：熱度從這株看過的峰值掉下來多少就枯多少；關掉就用面板的滑桿
+    const h = heat.value(now);
+    it.peak = Math.max(it.peak, h);
+    it.view.wither =
+      state.arc.enabled && state.arc.witherAuto ? witherFor(it.peak, h, state.arc) : state.wither;
     it.view.sync(now);
     if (it.grower?.alive) sound(it.grower.step(now), it.voice);
     // 長完那一刻通知聲音（草一直隨風晃、永遠 alive，不會觸發）
@@ -691,6 +746,7 @@ renderer.setAnimationLoop((now: number) => {
   // 畫畫時、剛轉過鏡頭的 3 秒內不自轉
   controls.autoRotate = state.view.autoRotate && !drawing && now - lastInteract > 3000;
   controls.update();
+  renderHeat(heat.value(now));
   renderer.render(scene, camera);
 });
 

@@ -1,5 +1,6 @@
 import type { PenParams } from '../../src/brushes/pen';
 import type { BrushPalette } from '../../src/color/nippon';
+import type { ArcParams } from '../../src/growth/arc';
 import type { Growth3DParams } from '../../src/growth/branching3d';
 import type { BotanicaParams } from '../../src/sound/botanica/params';
 import { KEY_NAMES, type KeyName } from '../../src/sound/theory/keys';
@@ -25,8 +26,10 @@ export type State = {
   species: { kind: number; useSwatch: boolean; density: number; height: number };
   leaf: LeafStyle;
   stem: StemStyle;
-  /** 枯 0..1（草稿：先用滑桿手動拉，之後要接熱度） */
+  /** 枯 0..1（草稿：「枯跟熱度」關掉時用這個滑桿手動拉） */
   wither: number;
+  /** 起伏（草稿）：熱度決定每一筆長多少、停手冷了就枯 */
+  arc: ArcParams;
   view: { autoRotate: boolean; rotateSpeed: number; fog: number; shadow: number };
   sound: {
     enabled: boolean;
@@ -188,7 +191,16 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
     parent.append(el('div', 'ui-section', `${sp?.name ?? ''}　${sp?.note ?? ''}`));
     toggle(panel, '放開後會長（G）', s.grow, 'enabled', changed, parent);
     if (s.species.kind === 0) {
-      slider(panel, '枯（草稿，拉著看）', s, 'wither', 0, 1, 0.005, changed, parent);
+      section(panel, '起伏（草稿）：畫越多越熱，越熱一筆長越多；停手冷了就枯', parent);
+      toggle(panel, '長多少跟熱度', s.arc, 'enabled', changed, parent);
+      slider(panel, '翻面門檻（熱度）', s.arc, 'threshold', 0.05, 1, 0.01, changed, parent);
+      slider(panel, '冷時量（成）', s.arc, 'cold', 0.1, 1, 0.05, changed, parent);
+      slider(panel, '翻面後量（倍）', s.arc, 'burst', 1, 4, 0.1, changed, parent);
+      slider(panel, '熱度半衰期 ms', s.arc, 'halfLifeMs', 3000, 90000, 1000, changed, parent);
+      toggle(panel, '枯跟熱度（停手就退）', s.arc, 'witherAuto', changed, parent);
+      slider(panel, '退潮跨度', s.arc, 'witherSpan', 0.2, 1, 0.05, changed, parent);
+      slider(panel, '枯（手動，上面關掉才有用）', s, 'wither', 0, 1, 0.005, changed, parent);
+      section(panel, '葉與枝', parent);
       slider(panel, '葉大小', s.leaf, 'size', 0.03, 0.4, 0.005, changed, parent);
       slider(panel, '每幾段一葉', s.growth, 'leafEvery', 1, 8, 1, changed, parent);
       slider(panel, '往裡外長', s.growth, 'outOfPlane', 0, 1, 0.01, changed, parent);
