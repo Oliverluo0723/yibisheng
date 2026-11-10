@@ -1,13 +1,15 @@
 import type { PenParams } from '../../src/brushes/pen';
+import type { BrushPalette } from '../../src/color/nippon';
 import type { Growth3DParams } from '../../src/growth/branching3d';
 import {
   button,
-  Dock,
+  fold,
   Panel,
+  region,
   slider,
   type Thumb,
+  tabs,
   thumbs,
-  tiles,
   toggle,
 } from '../../src/ui/panels';
 import type { LeafStyle, StemStyle } from './plantView';
@@ -25,11 +27,14 @@ export type State = {
 };
 
 export const SPECIES = [
-  { name: '押花樹', sub: '1', note: '分枝 + 真實葉片照片' },
-  { name: '草', sub: '2', note: '一叢細長草葉，隨風晃' },
-  { name: '曼珠沙華', sub: '3', note: '無葉直莖，頂端一圈紅花，花瓣後捲、花絲上翹' },
-  { name: '紫羅蘭', sub: '4', note: '下半部披針葉，上半部花穗由下往上開' },
+  { name: '押花樹', note: '分枝 + 真實葉片照片' },
+  { name: '草', note: '一叢細長草葉，隨風晃' },
+  { name: '曼珠沙華', note: '無葉直莖，頂端一圈紅花，花瓣後捲、花絲上翹' },
+  { name: '紫羅蘭', note: '下半部披針葉，上半部花穗由下往上開' },
 ];
+
+const TABS = ['此種', '鏡', '景', '聲', '筆尖'] as const;
+type Tab = (typeof TABS)[number];
 
 export type Actions = {
   onChange(): void;
@@ -40,82 +45,145 @@ export type Actions = {
   selectBackground(choice: string): void;
   backgroundThumbs(): Thumb[];
   openFile(file: File): void;
+  palette(): BrushPalette;
+  /** 目前選的色票；-1 = 自動 */
+  colorIndex(): number;
+  setColor(i: number): void;
 };
 
-/** 卡片：葉、長、鏡（預設開）；景、尖、聲（收在圓鈕）。 */
-export function createPanel(s: State, pen: PenParams, actions: Actions) {
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+
+/**
+ * 介面分兩層：
+ * - 前台：底部一條橫列（種｜色票｜景）＋ 左上角（調、復原、存圖、清空）。一直在。
+ * - 後台：一張「調」卡片，分頁切換，內容跟著目前的種變；平常藏著，按 ` 或「調」打開。
+ */
+export function createUI(s: State, pen: PenParams, actions: Actions) {
   const changed = () => actions.onChange();
+  let tab: Tab = '此種';
 
-  // ---------- 種 ----------
-  const speciesPanel = new Panel({ id: 's4-species', title: '種', sub: '1–4', x: 16, y: 110 });
-  tiles(
-    speciesPanel,
-    SPECIES.map((sp) => ({ label: sp.name, sub: sp.sub, title: sp.note })),
-    (i) => s.species.kind === i,
-    (i) => {
-      s.species.kind = i;
-      speciesPanel.refresh();
-      changed();
-    },
-  );
-  toggle(speciesPanel, '用色票的顏色', s.species, 'useSwatch', changed);
-  slider(speciesPanel, '密度', s.species, 'density', 0.2, 3, 0.05, changed);
-  slider(speciesPanel, '高度', s.species, 'height', 0.3, 2.5, 0.05, changed);
-
-  // ---------- 葉 ----------
-  const leafPanel = new Panel({
-    id: 's4-leaf',
-    title: '葉',
-    sub: '真實葉片照片',
+  // ---------- 後台：調 ----------
+  const panel = new Panel({
+    id: 's4-settings',
+    title: '調',
+    sub: '` 開關',
     right: 16,
     y: 16,
-  });
-  slider(leafPanel, '葉大小', s.leaf, 'size', 0.03, 0.4, 0.005, changed);
-  slider(leafPanel, '每幾段一葉', s.growth, 'leafEvery', 1, 8, 1, changed);
-  slider(leafPanel, '張角', s.leaf, 'angle', 0, 90, 1, changed);
-  slider(leafPanel, '捲曲', s.leaf, 'curl', 0, 1, 0.01, changed);
-  slider(leafPanel, '染色', s.leaf, 'tint', 0, 1, 0.01, changed);
-  slider(leafPanel, '葉種 0=全', s.leaf, 'sets', 0, 4, 1, changed);
-
-  // ---------- 長 ----------
-  const growPanel = new Panel({ id: 's4-grow', title: '長', sub: '往空間裡長', right: 16, y: 250 });
-  toggle(growPanel, '放開後會長', s.grow, 'enabled', changed);
-  const g = s.growth;
-  slider(growPanel, '往裡外長', g, 'outOfPlane', 0, 1, 0.01, changed);
-  slider(growPanel, '速度', g, 'speed', 0.02, 0.5, 0.005, changed);
-  slider(growPanel, '分岔機率', g, 'branchChance', 0, 1, 0.01, changed);
-  slider(growPanel, '分岔夾角', g, 'spread', 0.1, 2, 0.01, changed);
-  slider(growPanel, '彎曲', g, 'noise', 0, 2, 0.01, changed);
-  slider(growPanel, '向上', g, 'tropism', 0, 1.5, 0.01, changed);
-  slider(growPanel, '最深層數', g, 'maxDepth', 1, 6, 1, changed);
-  slider(growPanel, '生命 ms', g, 'life', 1000, 30000, 250, changed);
-  slider(growPanel, '起始芽數', g, 'tipsPerStroke', 1, 16, 1, changed);
-  slider(growPanel, '枝粗', s.stem, 'radius', 0.002, 0.05, 0.001, changed);
-
-  // ---------- 鏡 ----------
-  const viewPanel = new Panel({ id: 's4-view', title: '鏡', sub: 'R 自轉', right: 280, y: 16 });
-  toggle(viewPanel, '沒在動時自己轉', s.view, 'autoRotate', changed);
-  slider(viewPanel, '自轉速度', s.view, 'rotateSpeed', 0.1, 4, 0.05, changed);
-  slider(viewPanel, '霧', s.view, 'fog', 0, 0.4, 0.005, changed);
-  slider(viewPanel, '影子', s.view, 'shadow', 0, 0.6, 0.01, changed);
-  button(viewPanel, '鏡頭回正', () => actions.resetView());
-
-  // ---------- 景 ----------
-  const bgPanel = new Panel({
-    id: 's4-bg',
-    title: '景',
-    sub: 'B',
-    right: 280,
-    y: 250,
     open: false,
   });
-  const rebuildThumbs = thumbs(
-    bgPanel,
-    () => actions.backgroundThumbs(),
-    (label) => s.bg.choice === label,
-    (label) => actions.selectBackground(label),
+  tabs(
+    panel,
+    TABS,
+    () => tab,
+    (t) => {
+      tab = t;
+      render();
+    },
   );
-  const fileInput = document.createElement('input');
+  const content = region(panel);
+
+  function render() {
+    content((parent) => {
+      if (tab === '此種') renderSpecies(parent);
+      else if (tab === '鏡') {
+        toggle(panel, '沒在動時自己轉（R）', s.view, 'autoRotate', changed, parent);
+        slider(panel, '自轉速度', s.view, 'rotateSpeed', 0.1, 4, 0.05, changed, parent);
+        slider(panel, '霧', s.view, 'fog', 0, 0.4, 0.005, changed, parent);
+        slider(panel, '影子', s.view, 'shadow', 0, 0.6, 0.01, changed, parent);
+        button(panel, '鏡頭回正', () => actions.resetView(), parent);
+      } else if (tab === '景') {
+        thumbs(
+          panel,
+          () => actions.backgroundThumbs(),
+          (label) => s.bg.choice === label,
+          (label) => actions.selectBackground(label),
+          parent,
+        );
+        button(panel, '＋ 選自己的圖片或影片（也可以拖進畫面）', pickFile, parent);
+      } else if (tab === '聲') {
+        toggle(panel, '分枝、開花時發聲（M）', s.sound, 'enabled', changed, parent);
+        slider(panel, '音量', s.sound, 'volume', 0, 1, 0.01, changed, parent);
+      } else {
+        slider(panel, '粗細', pen, 'size', 2, 60, 0.5, changed, parent);
+        const adv = fold('進階', parent);
+        slider(panel, '彈力', pen, 'spring', 0.05, 1, 0.01, changed, adv);
+        slider(panel, '阻尼', pen, 'damping', 0.05, 0.95, 0.01, changed, adv);
+        slider(panel, '快則細', pen, 'thinning', 0, 1, 0.01, changed, adv);
+      }
+    });
+    panel.refresh();
+  }
+
+  /** 「此種」分頁：只放目前這種植物用得到的設定 */
+  function renderSpecies(parent: HTMLElement) {
+    const sp = SPECIES[s.species.kind];
+    parent.append(el('div', 'ui-section', `${sp?.name ?? ''}　${sp?.note ?? ''}`));
+    toggle(panel, '放開後會長（G）', s.grow, 'enabled', changed, parent);
+    if (s.species.kind === 0) {
+      slider(panel, '葉大小', s.leaf, 'size', 0.03, 0.4, 0.005, changed, parent);
+      slider(panel, '每幾段一葉', s.growth, 'leafEvery', 1, 8, 1, changed, parent);
+      slider(panel, '往裡外長', s.growth, 'outOfPlane', 0, 1, 0.01, changed, parent);
+      slider(panel, '分岔機率', s.growth, 'branchChance', 0, 1, 0.01, changed, parent);
+      slider(panel, '枝粗', s.stem, 'radius', 0.002, 0.05, 0.001, changed, parent);
+      const adv = fold('進階', parent);
+      slider(panel, '張角', s.leaf, 'angle', 0, 90, 1, changed, adv);
+      slider(panel, '捲曲', s.leaf, 'curl', 0, 1, 0.01, changed, adv);
+      slider(panel, '染色', s.leaf, 'tint', 0, 1, 0.01, changed, adv);
+      slider(panel, '葉種 0=全', s.leaf, 'sets', 0, 4, 1, changed, adv);
+      slider(panel, '速度', s.growth, 'speed', 0.02, 0.5, 0.005, changed, adv);
+      slider(panel, '分岔夾角', s.growth, 'spread', 0.1, 2, 0.01, changed, adv);
+      slider(panel, '彎曲', s.growth, 'noise', 0, 2, 0.01, changed, adv);
+      slider(panel, '向上', s.growth, 'tropism', 0, 1.5, 0.01, changed, adv);
+      slider(panel, '最深層數', s.growth, 'maxDepth', 1, 6, 1, changed, adv);
+      slider(panel, '生命 ms', s.growth, 'life', 1000, 30000, 250, changed, adv);
+      slider(panel, '起始芽數', s.growth, 'tipsPerStroke', 1, 16, 1, changed, adv);
+    } else {
+      toggle(panel, '用色票的顏色', s.species, 'useSwatch', changed, parent);
+      slider(panel, '密度', s.species, 'density', 0.2, 3, 0.05, changed, parent);
+      slider(panel, '高度', s.species, 'height', 0.3, 2.5, 0.05, changed, parent);
+    }
+  }
+
+  // ---------- 前台：左上角 ----------
+  const top = el('div', 'ui-top');
+  const gear = el('button', 'ui-dock-btn', '調');
+  gear.title = '調整（`）';
+  gear.onclick = () => toggleSettings();
+  top.append(gear);
+  for (const [label, key, fn] of [
+    ['復原', 'Z', actions.undo],
+    ['存圖', 'S', actions.save],
+    ['清空', 'C', actions.clear],
+  ] as const) {
+    const b = el('button', 'ui-dock-btn ui-action', label);
+    b.title = key;
+    b.onclick = () => fn();
+    top.append(b);
+  }
+  document.body.append(top);
+
+  const syncGear = () => gear.classList.toggle('on', panel.open);
+  function toggleSettings() {
+    panel.setOpen(!panel.open);
+    if (panel.open) panel.setCollapsed(false);
+    syncGear();
+  }
+  panel.onVisibility = syncGear;
+  syncGear();
+
+  // ---------- 前台：底部橫列 ----------
+  const bar = el('div', 'ui-bar');
+  document.body.append(bar);
+  const pop = el('div', 'ui-pop');
+  pop.hidden = true;
+  document.body.append(pop);
+
+  const fileInput = el('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*,video/*';
   fileInput.style.display = 'none';
@@ -125,50 +193,123 @@ export function createPanel(s: State, pen: PenParams, actions: Actions) {
     if (file) actions.openFile(file);
     fileInput.value = '';
   });
-  button(bgPanel, '＋ 選自己的圖片或影片', () => fileInput.click());
+  function pickFile() {
+    fileInput.click();
+  }
 
-  // ---------- 尖 ----------
-  const penPanel = new Panel({
-    id: 's4-pen',
-    title: '尖',
-    sub: '筆尖手感',
-    right: 544,
-    y: 250,
-    open: false,
-  });
-  slider(penPanel, '粗細', pen, 'size', 2, 60, 0.5, changed);
-  slider(penPanel, '彈力', pen, 'spring', 0.05, 1, 0.01, changed);
-  slider(penPanel, '阻尼', pen, 'damping', 0.05, 0.95, 0.01, changed);
+  function thumbEl(t: Thumb, cls: string): HTMLButtonElement {
+    const b = el('button', cls);
+    b.title = t.label;
+    if (t.kind === 'color') b.style.background = t.src;
+    else if (t.kind === 'image') {
+      const img = el('img');
+      img.src = t.src;
+      b.append(img);
+    } else {
+      const v = el('video');
+      v.src = `${t.src}#t=1`;
+      v.muted = true;
+      v.preload = 'metadata';
+      b.append(v);
+    }
+    return b;
+  }
 
-  // ---------- 聲 ----------
-  const soundPanel = new Panel({
-    id: 's4-sound',
-    title: '聲',
-    sub: 'M',
-    right: 544,
-    y: 16,
-    open: false,
-  });
-  toggle(soundPanel, '分枝時發聲', s.sound, 'enabled', changed);
-  slider(soundPanel, '音量', s.sound, 'volume', 0, 1, 0.01, changed);
+  function renderPop() {
+    pop.replaceChildren();
+    const grid = el('div', 'ui-thumbs');
+    for (const t of actions.backgroundThumbs()) {
+      const on = t.label === s.bg.choice ? ' on' : '';
+      const b = thumbEl(t, `ui-thumb${t.kind === 'color' ? ' plain' : ''}${on}`);
+      b.append(el('span', undefined, t.label));
+      b.onclick = () => {
+        actions.selectBackground(t.label);
+        pop.hidden = true;
+      };
+      grid.append(b);
+    }
+    const more = el('button', 'ui-button', '＋ 自己的圖片或影片');
+    more.style.marginTop = '8px';
+    more.style.width = '100%';
+    more.onclick = () => {
+      pop.hidden = true;
+      pickFile();
+    };
+    pop.append(grid, more);
+  }
 
-  const panels = [speciesPanel, leafPanel, growPanel, viewPanel, bgPanel, penPanel, soundPanel];
-  const dock = new Dock({ left: 16, top: 58 });
-  for (const panel of panels) dock.add(panel);
-  dock.action('復原', 'Z', () => actions.undo());
-  dock.action('存圖', 'S', () => actions.save());
-  dock.action('清空', 'C', () => actions.clear());
-  window.addEventListener('resize', () => {
-    for (const panel of panels) panel.clamp();
+  function renderBar() {
+    bar.replaceChildren();
+    const species = el('div', 'ui-bar-group');
+    SPECIES.forEach((sp, i) => {
+      const b = el('button', `ui-chip${s.species.kind === i ? ' on' : ''}`, sp.name);
+      b.title = `${i + 1}　${sp.note}`;
+      b.onclick = () => {
+        s.species.kind = i;
+        renderBar();
+        if (tab === '此種') render();
+        changed();
+      };
+      species.append(b);
+    });
+    const colors = el('div', 'ui-bar-group');
+    const pal = actions.palette();
+    const name = el('span', 'ui-sub', pal.name);
+    name.title = 'P 換紙';
+    colors.append(name);
+    pal.inks.forEach((c, i) => {
+      const b = el('button', `ui-swatch${actions.colorIndex() === i ? ' on' : ''}`);
+      b.style.background = c.hex;
+      b.title = `${c.kanji} ${c.romaji}`;
+      b.onclick = () => {
+        actions.setColor(i);
+        renderBar();
+      };
+      colors.append(b);
+    });
+    const auto = el('button', `ui-swatch auto${actions.colorIndex() < 0 ? ' on' : ''}`, '自');
+    auto.title = '自動：每一筆輪流換色（A）';
+    auto.onclick = () => {
+      actions.setColor(actions.colorIndex() < 0 ? 0 : -1);
+      renderBar();
+    };
+    colors.append(auto);
+    const current = actions.backgroundThumbs().find((t) => t.label === s.bg.choice);
+    const bgBtn = current ? thumbEl(current, 'ui-bgbtn') : el('button', 'ui-bgbtn');
+    bgBtn.title = `景：${s.bg.choice}（B）`;
+    bgBtn.onclick = () => {
+      if (pop.hidden) {
+        renderPop();
+        const r = bgBtn.getBoundingClientRect();
+        pop.style.left = `${Math.min(window.innerWidth - 276, Math.max(16, r.right - 260))}px`;
+        pop.style.bottom = `${window.innerHeight - r.top + 12}px`;
+      }
+      pop.hidden = !pop.hidden;
+    };
+    bar.append(species, el('span', 'ui-bar-sep'), colors, el('span', 'ui-bar-sep'), bgBtn);
+  }
+
+  window.addEventListener('pointerdown', (ev) => {
+    if (pop.hidden) return;
+    const t = ev.target as Node;
+    if (!pop.contains(t) && !bar.contains(t)) pop.hidden = true;
   });
+  window.addEventListener('resize', () => panel.clamp());
+
+  render();
+  renderBar();
 
   return {
-    updateBackground() {
-      rebuildThumbs();
-      bgPanel.refresh();
-    },
+    /** 種、色、紙、景變了：重畫前台，「此種」分頁也跟著換 */
     refresh() {
-      for (const panel of panels) panel.refresh();
+      renderBar();
+      render();
     },
+    updateBackground() {
+      renderBar();
+      if (!pop.hidden) renderPop();
+      if (tab === '景') render();
+    },
+    toggleSettings,
   };
 }

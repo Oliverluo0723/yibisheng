@@ -408,3 +408,39 @@ export function region(panel: Panel): (fill: (parent: HTMLElement) => void) => v
     }
   };
 }
+
+/** 可收合的「進階」區塊；回傳裡面的容器，控制項的 parent 設成它 */
+export function fold(label: string, parent: HTMLElement, open = false): HTMLDivElement {
+  const d = document.createElement('details');
+  d.className = 'ui-fold';
+  d.open = open;
+  const sum = document.createElement('summary');
+  sum.textContent = label;
+  const inner = document.createElement('div');
+  d.append(sum, inner);
+  parent.append(d);
+  return inner;
+}
+
+/** 分頁列：回傳一個函式，呼叫它重畫目前選中的分頁 */
+export function tabs<T extends string>(
+  panel: Panel,
+  names: readonly T[],
+  get: () => T,
+  set: (t: T) => void,
+): void {
+  const row = document.createElement('div');
+  row.className = 'ui-tabs';
+  const btns = names.map((n) => {
+    const b = document.createElement('button');
+    b.className = 'ui-tab';
+    b.textContent = n;
+    b.onclick = () => set(n);
+    row.append(b);
+    return { b, n };
+  });
+  panel.body.append(row);
+  panel.track(() => {
+    for (const { b, n } of btns) b.classList.toggle('on', n === get());
+  });
+}

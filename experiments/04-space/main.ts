@@ -20,7 +20,7 @@ import {
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
-import { createPanel, SPECIES, type State } from './panel';
+import { createUI, SPECIES, type State } from './panel';
 import {
   defaultLeafStyle,
   defaultStemStyle,
@@ -409,39 +409,20 @@ function renderHud() {
   const shown = ui.auto ? undefined : pal.inks[ui.color];
   const small = (t: string) => Object.assign(document.createElement('small'), { textContent: t });
   $('color-name').replaceChildren(shown ? `${shown.kanji}　` : '自動配色　', small('空間'));
-  const row = $('swatches');
-  row.replaceChildren();
-  const name = document.createElement('span');
-  name.id = 'palette-name';
-  name.textContent = pal.name;
-  row.append(name);
-  pal.inks.forEach((c, i) => {
-    const el = document.createElement('button');
-    el.className = `sw${!ui.auto && ui.color === i ? ' on' : ''}`;
-    el.style.background = c.hex;
-    el.title = `${c.kanji} ${c.romaji}`;
-    el.onclick = () => {
-      ui.auto = false;
-      ui.color = i;
-      renderHud();
-    };
-    row.append(el);
-  });
-  const auto = document.createElement('button');
-  auto.className = `sw auto${ui.auto ? ' on' : ''}`;
-  auto.textContent = '自';
-  auto.onclick = () => {
-    ui.auto = !ui.auto;
-    renderHud();
-  };
-  row.append(auto);
 }
 function renderToggles() {
   $('toggles').textContent =
     `生長${state.grow.enabled ? '開' : '關'} · 聲音${state.sound.enabled ? '開' : '關'} · 自轉${state.view.autoRotate ? '開' : '關'}`;
 }
 
-const panel = createPanel(state, penParams, {
+const panel = createUI(state, penParams, {
+  palette,
+  colorIndex: () => (ui.auto ? -1 : ui.color),
+  setColor: (i) => {
+    ui.auto = i < 0;
+    if (i >= 0) ui.color = i;
+    renderHud();
+  },
   onChange: () => {
     engine.setVolume(state.sound.volume);
     applyLook();
@@ -478,6 +459,7 @@ window.addEventListener('keydown', (ev) => {
   else if (k === 's') save();
   else if (k === 'c') clear();
   else if (k === 'h') document.body.classList.toggle('hide-hud');
+  else if (k === '`') panel.toggleSettings();
   else return;
   panel.refresh();
   renderHud();

@@ -360,3 +360,177 @@ body.hide-hud .ui-dock {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ---------- 前台：底部一條橫列 ---------- */
+.ui-bar {
+  position: fixed;
+  z-index: 19;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--ui-shadow);
+  color: var(--ui-fg);
+  font: 12px var(--ui-font);
+  user-select: none;
+  max-width: calc(100vw - 32px);
+}
+.ui-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ui-bar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--ui-line);
+}
+.ui-chip {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--ui-soft);
+  font: 13px var(--ui-font);
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-chip:hover {
+  color: var(--ui-fg);
+  background: var(--ui-hover);
+}
+.ui-chip.on {
+  color: var(--ui-bg);
+  background: var(--ui-fg);
+}
+.ui-bar .ui-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  outline: 1px solid rgba(0, 0, 0, 0.12);
+  transition: transform 0.15s;
+}
+.ui-bar .ui-swatch:hover {
+  transform: scale(1.18);
+}
+.ui-bar .ui-swatch.on {
+  outline: 1.5px solid var(--ui-fg);
+  outline-offset: 2px;
+}
+.ui-bar .ui-swatch.auto {
+  background: none;
+  color: var(--ui-fg);
+  font: 10px var(--ui-font);
+  outline-style: dashed;
+}
+.ui-bgbtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-line);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--ui-hover) center / cover no-repeat;
+}
+.ui-bgbtn img,
+.ui-bgbtn video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.ui-pop {
+  position: fixed;
+  z-index: 22;
+  width: 260px;
+  padding: 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: 12px;
+  background: var(--ui-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--ui-shadow);
+}
+.ui-pop[hidden] {
+  display: none;
+}
+
+/* 左上角：調整鈕 + 動作 */
+.ui-top {
+  position: fixed;
+  z-index: 21;
+  left: 16px;
+  top: 16px;
+  display: flex;
+  gap: 7px;
+}
+
+/* 分頁列 */
+.ui-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ui-tab {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ui-soft);
+  font: 13px var(--ui-font);
+  letter-spacing: 0.15em;
+  cursor: pointer;
+}
+.ui-tab:hover {
+  background: var(--ui-hover);
+  color: var(--ui-fg);
+}
+.ui-tab.on {
+  background: var(--ui-fg);
+  color: var(--ui-bg);
+}
+
+/* 「進階」可收合 */
+.ui-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--ui-soft);
+  padding: 2px 0;
+}
+.ui-fold > summary::before {
+  content: "＋ ";
+}
+.ui-fold[open] > summary::before {
+  content: "－ ";
+}
+.ui-fold > div {
+  display: grid;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+body.hide-hud .ui-bar,
+body.hide-hud .ui-top,
+body.hide-hud .ui-pop {
+  opacity: 0;
+  pointer-events: none;
+}
+.ui-bar .ui-sub {
+  white-space: nowrap;
+}
