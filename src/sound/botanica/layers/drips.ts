@@ -9,18 +9,22 @@ type Voice = { player: Tone.Player; panner: Tone.Panner; gain: Tone.Gain; starte
 /** 偶發：水滴、glitch。四個 Player 輪用。 */
 export class Drips extends LayerBase implements DripLayer {
   private readonly voices: Voice[];
+  /** 水滴、glitch 送進殘響的量 */
+  private readonly sendLevel = new Tone.Gain(0.4);
 
   constructor(
     bus: Bus,
     private readonly loader: Loader,
     private readonly rng: () => number,
   ) {
-    super(bus.layer('drips'));
+    super(bus, 'drips');
+    this.sendLevel.connect(this.wet);
     this.voices = Array.from({ length: 4 }, () => {
       const player = new Tone.Player();
       const panner = new Tone.Panner(0);
       const gain = new Tone.Gain(1);
       player.chain(panner, gain, this.out);
+      gain.connect(this.sendLevel);
       return { player, panner, gain, startedAt: Number.NEGATIVE_INFINITY };
     });
   }
@@ -54,5 +58,7 @@ export class Drips extends LayerBase implements DripLayer {
       v.panner.dispose();
       v.gain.dispose();
     }
+    this.sendLevel.dispose();
+    this.wet.dispose();
   }
 }

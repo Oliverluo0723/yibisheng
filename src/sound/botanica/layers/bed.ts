@@ -24,7 +24,7 @@ export class Bed extends LayerBase implements BedLayer {
     private readonly loader: Loader,
     private readonly rng: () => number,
   ) {
-    super(bus.layer('bed'));
+    super(bus, 'bed');
     this.filter.connect(this.out);
     const slot = (): Slot => {
       const player = new Tone.Player({ loop: true });
@@ -102,5 +102,6 @@ export class Bed extends LayerBase implements BedLayer {
     this.rain.dispose();
     this.rainGain.dispose();
     this.filter.dispose();
+    this.wet.dispose();
   }
 }

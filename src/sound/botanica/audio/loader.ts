@@ -1,10 +1,12 @@
 import * as Tone from 'tone';
 import type { SampleStore } from '../layers/types';
 import { type SampleRole, SOUND_BASE, samplesByRole } from '../manifest';
+import { reversedCopy } from './reverse';
 
 /** 依用途載入素材；載好之前 ready() 是 false，層和引擎直接略過。 */
 export class Loader implements SampleStore {
   private readonly buffers = new Map<string, Tone.ToneAudioBuffer>();
+  private readonly reversed = new Map<string, Tone.ToneAudioBuffer>();
   private readonly loaded = new Set<SampleRole>();
   private readonly pending = new Map<SampleRole, Promise<void>>();
 
@@ -12,6 +14,23 @@ export class Loader implements SampleStore {
 
   get(id: string): Tone.ToneAudioBuffer | undefined {
     return this.buffers.get(id);
+  }
+
+  /** 反轉版：第一次要時複製一份反轉後快取，原本那份不動。 */
+  getReversed(id: string): Tone.ToneAudioBuffer | undefined {
+    const cached = this.reversed.get(id);
+    if (cached) return cached;
+    const buf = this.buffers.get(id);
+    if (!buf) return undefined;
+    const data = buf.toArray();
+    const rev = Tone.ToneAudioBuffer.fromArray(reversedCopy(Array.isArray(data) ? data : [data]));
+    this.reversed.set(id, rev);
+    return rev;
+  }
+
+  /** 依 reverse 拿正的或反的那份 */
+  buffer(id: string, reverse: boolean): Tone.ToneAudioBuffer | undefined {
+    return reverse ? this.getReversed(id) : this.get(id);
   }
 
   ready(role: SampleRole): boolean {

@@ -116,7 +116,8 @@ export class BotanicaEngine implements SoundEngine {
     const now = this.deps.now();
     this.idle.activity(now);
     if (e.kind === 'leaf' && this.rng() < 0.5) return;
-    if (!this.rate.allow(now)) return;
+    // 同一毫秒算一次：performance.now() 帶小數，同一幀的好幾個分枝時間戳都不同
+    if (!this.rate.allow(Math.floor(now))) return;
     const s = this.pick(grainCategory(e.depth));
     if (!s) return;
     const g = this.recipe.grains;

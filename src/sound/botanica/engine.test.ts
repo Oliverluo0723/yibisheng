@@ -167,3 +167,16 @@ test('預設參數物件不被引擎改動', () => {
   new BotanicaEngine(p, f.deps).onPlantStart(1);
   expect(p).toEqual(defaultBotanicaParams);
 });
+
+test('同一毫秒內的多個分枝只出一顆（時間戳帶小數也一樣）', () => {
+  const f = fake();
+  const t = { v: 1000.1 };
+  f.deps.now = () => t.v;
+  const e = new BotanicaEngine(calm(), f.deps);
+  e.onPlantStart(1);
+  for (const x of [1000.1, 1000.4, 1000.9]) {
+    t.v = x;
+    e.onGrowth(ev(0));
+  }
+  expect(f.calls.filter((c) => c.startsWith('grain')).length).toBe(1);
+});

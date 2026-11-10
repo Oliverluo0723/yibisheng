@@ -28,7 +28,7 @@ export class Bloom extends LayerBase implements BloomLayer {
     bus: Bus,
     private readonly loader: Loader,
   ) {
-    super(bus.layer('bloom'));
+    super(bus, 'bloom');
     // 兩個在響 + 一個正在淡出
     this.slots = Array.from({ length: MAX_SOUNDING + 1 }, () => {
       const player = new Tone.Player();
@@ -37,13 +37,13 @@ export class Bloom extends LayerBase implements BloomLayer {
       const env = new Tone.Gain(0);
       const send = new Tone.Gain(0.5);
       player.chain(filter, panner, env, this.out);
-      env.chain(send, bus.send());
+      env.chain(send, this.wet);
       return { player, filter, panner, env, send, startedAt: -1, endsAt: -1, fading: false };
     });
   }
 
   bloom(sampleId: string, o: BloomOpts): void {
-    const buf = this.loader.get(sampleId);
+    const buf = this.loader.buffer(sampleId, o.reverse);
     if (!buf) return;
     const now = Tone.now();
     const sounding = this.slots.filter((s) => !s.fading && s.endsAt > now);
@@ -55,8 +55,10 @@ export class Bloom extends LayerBase implements BloomLayer {
     const s =
       this.slots.find((x) => x.endsAt <= now) ??
       this.slots.reduce((a, b) => (b.startedAt < a.startedAt ? b : a));
-    // 停掉舊的之後稍晚一點再開始，避免同一時間點 stop / start 互相蓋掉
-    const t0 = now + 0.02;
+    // 搶到還在響（通常正在淡出）的槽：先用 50 ms 滑到 0 再停，不要硬切出「喀」聲；
+    // 新的稍晚一點再開始，避免同一時間點 stop / start 互相蓋掉
+    const busy = s.player.state === 'started';
+    const t0 = now + (busy ? 0.06 : 0.02);
 
     const rate = 2 ** ((o.shift + 12 * o.octave) / 12);
     const offset = Math.min(o.sliceStart, 0.95) * buf.duration;
@@ -66,15 +68,17 @@ export class Bloom extends LayerBase implements BloomLayer {
     const release = Math.min(1.5, realDur * 0.35);
     const peak = o.gain * Tone.dbToGain(sampleById(sampleId)?.gainDb ?? 0);
 
-    if (s.player.state === 'started') s.player.stop(now);
+    const g = s.env.gain;
+    g.cancelAndHoldAtTime(now);
+    if (busy) {
+      g.linearRampToValueAtTime(0, now + 0.05);
+      s.player.stop(now + 0.05);
+    }
     s.player.buffer = buf;
-    s.player.reverse = o.reverse;
     s.player.playbackRate = rate;
     s.filter.frequency.setValueAtTime(o.lowpassHz, t0);
     s.panner.pan.setValueAtTime(Math.max(-1, Math.min(1, o.pan)), t0);
     s.send.gain.setValueAtTime(o.reverbSend, t0);
-    const g = s.env.gain;
-    g.cancelScheduledValues(now);
     g.setValueAtTime(0, t0);
     g.linearRampToValueAtTime(peak, t0 + attack);
     g.setValueAtTime(peak, t0 + realDur - release);
@@ -87,8 +91,7 @@ export class Bloom extends LayerBase implements BloomLayer {
 
   private fadeOut(s: Slot, now: number): void {
     const g = s.env.gain;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(g.value, now);
+    g.cancelAndHoldAtTime(now);
     g.linearRampToValueAtTime(0, now + FADE_OUT);
     // 不排未來的 stop：這個槽可能在淡完之前被重用，排好的 stop 會切掉新的聲音。
     // 音量已經滑到 0，播放器會在切片結束時自己停。
@@ -104,5 +107,6 @@ export class Bloom extends LayerBase implements BloomLayer {
       s.env.dispose();
       s.send.dispose();
     }
+    this.wet.dispose();
   }
 }
