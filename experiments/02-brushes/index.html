@@ -25,6 +25,9 @@
         transition: opacity 0.4s;
       }
       body.hide-hud .hud { opacity: 0; pointer-events: none; }
+      /* 背景是照片或影片時，字加一圈光暈才讀得到 */
+      body.media .hud { text-shadow: 0 0 4px rgba(255, 255, 255, 0.9), 0 0 10px rgba(255, 255, 255, 0.6); }
+      body.media.dark .hud { text-shadow: 0 0 4px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.6); }
       #label {
         left: 28px;
         bottom: 28px;

@@ -3,6 +3,7 @@ import type { Brush } from '../../src/brushes';
 import type { PenParams } from '../../src/brushes/pen';
 import type { defaultBranchStyle } from '../../src/brushes/plantPainter';
 import type { GrowthParams } from '../../src/growth/types';
+import type { BgState } from './backgrounds';
 
 export type GrowState = {
   enabled: boolean;
@@ -17,6 +18,9 @@ export type PanelActions = {
   undo(): void;
   save(): void;
   onChange(): void;
+  selectBackground(choice: string): void;
+  backgroundChoices(): string[];
+  openFile(file: File): void;
 };
 
 /** 右上角面板：筆尖物理（所有筆共用）+ 目前這支筆自己的參數。 */
@@ -24,6 +28,7 @@ export function createPanel(
   pen: PenParams,
   brushes: Brush[],
   grow: GrowState,
+  bg: BgState,
   actions: PanelActions,
 ) {
   const gui = new GUI({ title: '02 筆', width: 270 });
@@ -64,6 +69,35 @@ export function createPanel(
   snd.add(grow.sound, 'volume', 0, 1, 0.01).name('音量');
   snd.close();
 
+  const bgf = gui.addFolder('背景 (B) · 也可以把圖片或影片拖進畫面');
+  let bgCtl = bgf.add(bg, 'choice', actions.backgroundChoices()).name('背景');
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*,video/*';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) actions.openFile(file);
+    fileInput.value = '';
+  });
+  bgf.add({ pick: () => fileInput.click() }, 'pick').name('選背景檔案…');
+  bgf.add(bg.params, 'veil', 0, 1, 0.01).name('紗（蓋一層紙）');
+  bgf.add(bg.params, 'fade', 0, 1, 0.01).name('褪色');
+  bgf.add(bg.params, 'brightness', 0.2, 1.8, 0.01).name('亮度');
+  bgf.add(bg.params, 'blur', 0, 30, 0.5).name('模糊 (px)');
+  bgf
+    .add(bg.params, 'blend', { 一般: 'source-over', 相乘: 'multiply', 變亮: 'screen' })
+    .name('筆畫疊法');
+
+  /** 背景選項或目前選擇變了（例如拖進新檔案、按 B）時呼叫 */
+  function updateBackground() {
+    bgCtl = bgCtl.options(actions.backgroundChoices());
+    bgCtl.onChange((c: string) => actions.selectBackground(c));
+    bgCtl.updateDisplay();
+  }
+  bgCtl.onChange((c: string) => actions.selectBackground(c));
+
   let folder: GUI | undefined;
   function showBrush(i: number) {
     const b = brushes[i];
@@ -88,5 +122,5 @@ export function createPanel(
 
   gui.onChange(() => actions.onChange());
   showBrush(0);
-  return { gui, showBrush };
+  return { gui, showBrush, updateBackground };
 }
