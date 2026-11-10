@@ -14,6 +14,4 @@ export const BG_SAMPLES: { name: string; kind: BackdropKind; src: string }[] = [
   { name: '高美・風紋', kind: 'video', src: `${dir}/gaomei-water.webm` },
   { name: '花塵', kind: 'image', src: `${dir}/petals-ground.jpg` },
   { name: '朝霧', kind: 'image', src: `${dir}/fog-forest.jpg` },
-  { name: '苔庭', kind: 'image', src: `${dir}/moss.jpg` },
-  { name: '虞美人', kind: 'image', src: `${dir}/poppy-petals.jpg` },
 ];

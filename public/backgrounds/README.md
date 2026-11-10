@@ -10,7 +10,5 @@
 | gaomei-water.webm | 高美・風紋 | [Wind on water at 高美濕地.webm](https://commons.wikimedia.org/wiki/File:Wind_on_water_at_%E9%AB%98%E7%BE%8E%E6%BF%95%E5%9C%B0.webm)（直式） | Jidanni |
 | petals-ground.jpg | 花塵 | [Falling petals.jpg](https://commons.wikimedia.org/wiki/File:Falling_petals.jpg) | WANGYIFAN2024 |
 | fog-forest.jpg | 朝霧 | [Fog in forest at Kent, Washington - 1.jpg](https://commons.wikimedia.org/wiki/File:Fog_in_forest_at_Kent,_Washington_-_1.jpg) | Roc0ast3r |
-| moss.jpg | 苔庭 | [Mossy Forest Floor (60670374).jpeg](https://commons.wikimedia.org/wiki/File:Mossy_Forest_Floor_(60670374).jpeg) | Stefanie Leuker |
-| poppy-petals.jpg | 虞美人 | [Petals of poppy.jpg](https://commons.wikimedia.org/wiki/File:Petals_of_poppy.jpg) | Ted Moravec |
 
 要加自己的：直接把檔案拖進 02 的畫面就好（不會存進專案）。想變成固定範例，放進這個資料夾，再到 `experiments/02-brushes/backgrounds.ts` 的 `BG_SAMPLES` 加一行。
