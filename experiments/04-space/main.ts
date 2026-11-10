@@ -199,7 +199,8 @@ type Drawing = {
 };
 let drawing: Drawing | null = null;
 /** 每一筆：畫出來的主莖（PlantView）+ 放開後長出的東西 */
-type Item = { view: PlantView; grower?: Grower; wasAlive?: boolean };
+/** voice = 這株的植物名，聲音引擎用它決定「一種植物一種聲音」 */
+type Item = { view: PlantView; grower?: Grower; wasAlive?: boolean; voice?: string };
 let items: Item[] = [];
 
 status('葉片素材載入中…');
@@ -392,9 +393,10 @@ function finishDrawing() {
   const sp = state.species;
   const tint = sp.useSwatch ? d.color : undefined;
   const fp = { density: sp.density, height: sp.height };
+  item.voice = SPECIES[d.kind]?.name;
   if (d.kind === 0) {
     d.view.plant = new Plant3D(d.points, { ...state.growth }, seed, d.normal);
-    engine().onPlantStart?.(seed);
+    engine().onPlantStart?.(seed, item.voice);
     return;
   }
   let grower: Grower;
@@ -404,7 +406,7 @@ function finishDrawing() {
   else grower = new StockView(planStock(d.points, fp, rng), now, tint);
   item.grower = grower;
   scene.add(grower.group);
-  engine().onPlantStart?.(seed);
+  engine().onPlantStart?.(seed, item.voice);
 }
 
 function stepDrawing() {
@@ -640,24 +642,27 @@ renderer.setAnimationLoop((now: number) => {
   stepHand(now);
   stepOrbit(dt, now);
   stepDrawing();
-  const sound = (events: Growth3DEvent[]) => {
+  const sound = (events: Growth3DEvent[], voice: string | undefined) => {
     if (!state.sound.enabled) return;
     for (const e of events) {
       // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
-      engine().onGrowth({
-        kind: e.kind,
-        x: Math.min(1, Math.max(0, (e.at.x + 1.5) / 3)),
-        y: Math.min(1, Math.max(0, 0.5 - e.at.y / 3)),
-        depth: e.depth,
-        age: e.age,
-      });
+      engine().onGrowth(
+        {
+          kind: e.kind,
+          x: Math.min(1, Math.max(0, (e.at.x + 1.5) / 3)),
+          y: Math.min(1, Math.max(0, 0.5 - e.at.y / 3)),
+          depth: e.depth,
+          age: e.age,
+        },
+        voice,
+      );
     }
   };
   for (const it of items) {
     const p = it.view.plant;
-    if (p?.alive) sound(p.step(dt));
+    if (p?.alive) sound(p.step(dt), it.voice);
     it.view.sync(now);
-    if (it.grower?.alive) sound(it.grower.step(now));
+    if (it.grower?.alive) sound(it.grower.step(now), it.voice);
     // 長完那一刻通知聲音（草一直隨風晃、永遠 alive，不會觸發）
     const alive = Boolean(p?.alive || it.grower?.alive);
     if (it.wasAlive && !alive && state.sound.enabled) engine().onPlantDone?.();

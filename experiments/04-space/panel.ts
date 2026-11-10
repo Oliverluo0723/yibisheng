@@ -168,6 +168,7 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
     for (const [name, key] of [
       ['底：風、水', 'bed'],
       ['和弦：放開時綻放', 'bloom'],
+      ['弦樂：拉長的和弦', 'pad'],
       ['顆粒：分枝時', 'grains'],
       ['偶發：水滴、glitch', 'drips'],
       ['鼓：畫得越熱鬧越近', 'drums'],
