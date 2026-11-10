@@ -19,6 +19,8 @@ import {
   loadBackdrop,
 } from '../../src/render/backdrop';
 import { orbitOffset } from '../../src/render/orbit';
+import { createBotanicaEngine, freshBotanicaParams } from '../../src/sound/botanica';
+import type { SoundEngine } from '../../src/sound/engine';
 import { WebAudioEngine } from '../../src/sound/webaudio';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
@@ -39,14 +41,24 @@ const state: State = {
   leaf: { ...defaultLeafStyle },
   stem: { ...defaultStemStyle },
   view: { autoRotate: true, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
-  sound: { enabled: true, volume: 0.8 },
+  sound: { enabled: true, volume: 0.8, engine: 'botanica', botanica: freshBotanicaParams() },
   bg: { choice: BG_PAPER },
 };
 const ui = { palette: 0, color: 0, auto: false, autoNext: 0, hand: false };
 const penParams = { ...defaultPenParams };
 const pen = new SpringPen(penParams);
-const engine = new WebAudioEngine(13);
+// 聲音：原本的三角波引擎與 Botanica 四層引擎，面板可切換
+const basic = new WebAudioEngine(13);
+const botanica = createBotanicaEngine(state.sound.botanica);
+const engine = (): SoundEngine => (state.sound.engine === 'botanica' ? botanica : basic);
 let audioStarted = false;
+/** 把面板上的聲音設定推給引擎；Botanica 在關聲音或切到原本時整個靜音（含底） */
+function syncSound() {
+  basic.setVolume(state.sound.volume);
+  botanica.applyParams();
+  botanica.setVolume(state.sound.volume);
+  botanica.setMuted(!state.sound.enabled || state.sound.engine !== 'botanica');
+}
 let leafTex: LeafTex[] = [];
 const backdrops = new Map<string, Backdrop>();
 
@@ -187,7 +199,7 @@ type Drawing = {
 };
 let drawing: Drawing | null = null;
 /** 每一筆：畫出來的主莖（PlantView）+ 放開後長出的東西 */
-type Item = { view: PlantView; grower?: Grower };
+type Item = { view: PlantView; grower?: Grower; wasAlive?: boolean };
 let items: Item[] = [];
 
 status('葉片素材載入中…');
@@ -227,7 +239,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 function beginDraw(x: number, y: number): boolean {
   if (!audioStarted) {
     audioStarted = true;
-    void engine.start().then(() => engine.setVolume(state.sound.volume));
+    void Promise.all([basic.start(), botanica.start()]).then(syncSound);
   }
   finishDrawing();
   mouseX = x;
@@ -382,6 +394,7 @@ function finishDrawing() {
   const fp = { density: sp.density, height: sp.height };
   if (d.kind === 0) {
     d.view.plant = new Plant3D(d.points, { ...state.growth }, seed, d.normal);
+    engine().onPlantStart?.(seed);
     return;
   }
   let grower: Grower;
@@ -391,6 +404,7 @@ function finishDrawing() {
   else grower = new StockView(planStock(d.points, fp, rng), now, tint);
   item.grower = grower;
   scene.add(grower.group);
+  engine().onPlantStart?.(seed);
 }
 
 function stepDrawing() {
@@ -523,7 +537,7 @@ const panel = createUI(state, penParams, {
     renderHud();
   },
   onChange: () => {
-    engine.setVolume(state.sound.volume);
+    syncSound();
     applyLook();
     renderHud();
     renderToggles();
@@ -597,8 +611,10 @@ window.addEventListener('keydown', (ev) => {
     void selectBackground(list[(list.indexOf(state.bg.choice) + 1) % list.length] ?? BG_PAPER);
   } else if (k === 'r') state.view.autoRotate = !state.view.autoRotate;
   else if (k === 'g') state.grow.enabled = !state.grow.enabled;
-  else if (k === 'm') state.sound.enabled = !state.sound.enabled;
-  else if (k === 'z') undo();
+  else if (k === 'm') {
+    state.sound.enabled = !state.sound.enabled;
+    syncSound();
+  } else if (k === 'z') undo();
   else if (k === 's') save();
   else if (k === 'c') clear();
   else if (k === 'h') document.body.classList.toggle('hide-hud');
@@ -628,7 +644,7 @@ renderer.setAnimationLoop((now: number) => {
     if (!state.sound.enabled) return;
     for (const e of events) {
       // 舊的聲音引擎吃 0..1 的畫面座標；用 x、y 大略換算
-      engine.onGrowth({
+      engine().onGrowth({
         kind: e.kind,
         x: Math.min(1, Math.max(0, (e.at.x + 1.5) / 3)),
         y: Math.min(1, Math.max(0, 0.5 - e.at.y / 3)),
@@ -642,6 +658,10 @@ renderer.setAnimationLoop((now: number) => {
     if (p?.alive) sound(p.step(dt));
     it.view.sync(now);
     if (it.grower?.alive) sound(it.grower.step(now));
+    // 長完那一刻通知聲音（草一直隨風晃、永遠 alive，不會觸發）
+    const alive = Boolean(p?.alive || it.grower?.alive);
+    if (it.wasAlive && !alive && state.sound.enabled) engine().onPlantDone?.();
+    it.wasAlive = alive;
   }
   // 畫畫時、剛轉過鏡頭的 3 秒內不自轉
   controls.autoRotate = state.view.autoRotate && !drawing && now - lastInteract > 3000;

@@ -1,11 +1,15 @@
 import type { PenParams } from '../../src/brushes/pen';
 import type { BrushPalette } from '../../src/color/nippon';
 import type { Growth3DParams } from '../../src/growth/branching3d';
+import type { BotanicaParams } from '../../src/sound/botanica/params';
+import { KEY_NAMES, type KeyName } from '../../src/sound/theory/keys';
 import {
   button,
   fold,
   Panel,
   region,
+  section,
+  segmented,
   slider,
   type Thumb,
   tabs,
@@ -22,7 +26,13 @@ export type State = {
   leaf: LeafStyle;
   stem: StemStyle;
   view: { autoRotate: boolean; rotateSpeed: number; fog: number; shadow: number };
-  sound: { enabled: boolean; volume: number };
+  sound: {
+    enabled: boolean;
+    volume: number;
+    /** basic = 第一版三角波；botanica = 四層取樣 */
+    engine: 'basic' | 'botanica';
+    botanica: BotanicaParams;
+  };
   bg: { choice: string };
 };
 
@@ -109,8 +119,7 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
         );
         button(panel, '＋ 選自己的圖片或影片（也可以拖進畫面）', pickFile, parent);
       } else if (tab === '聲') {
-        toggle(panel, '分枝、開花時發聲（M）', s.sound, 'enabled', changed, parent);
-        slider(panel, '音量', s.sound, 'volume', 0, 1, 0.01, changed, parent);
+        renderSound(parent);
       } else {
         slider(panel, '粗細', pen, 'size', 2, 60, 0.5, changed, parent);
         const adv = fold('進階', parent);
@@ -123,6 +132,51 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
   }
 
   /** 「此種」分頁：只放目前這種植物用得到的設定 */
+  function renderSound(parent: HTMLElement) {
+    const snd = s.sound;
+    const b = snd.botanica;
+    toggle(panel, '發聲（M）', snd, 'enabled', changed, parent);
+    slider(panel, '音量', snd, 'volume', 0, 1, 0.01, changed, parent);
+    segmented<'basic' | 'botanica'>(
+      panel,
+      [
+        { label: '原本', value: 'basic' },
+        { label: 'Botanica', value: 'botanica' },
+      ],
+      () => snd.engine,
+      (v) => {
+        snd.engine = v;
+        changed();
+      },
+      parent,
+    );
+    section(panel, '調', parent);
+    const label = (k: KeyName) => k.replace('b', '♭');
+    for (const row of [KEY_NAMES.slice(0, 6), KEY_NAMES.slice(6)]) {
+      segmented<KeyName>(
+        panel,
+        row.map((k) => ({ label: label(k), value: k })),
+        () => b.key,
+        (v) => {
+          b.key = v;
+          changed();
+        },
+        parent,
+      );
+    }
+    slider(panel, '隨機幅度', b, 'randomness', 0, 1, 0.01, changed, parent);
+    for (const [name, key] of [
+      ['底：風、水', 'bed'],
+      ['和弦：放開時綻放', 'bloom'],
+      ['顆粒：分枝時', 'grains'],
+      ['偶發：水滴、glitch', 'drips'],
+    ] as const) {
+      section(panel, name, parent);
+      toggle(panel, '開', b[key], 'enabled', changed, parent);
+      slider(panel, '音量', b[key], 'volume', 0, 1, 0.01, changed, parent);
+    }
+  }
+
   function renderSpecies(parent: HTMLElement) {
     const sp = SPECIES[s.species.kind];
     parent.append(el('div', 'ui-section', `${sp?.name ?? ''}　${sp?.note ?? ''}`));
