@@ -1,3 +1,6 @@
 node_modules
 dist
 .DS_Store
+
+# 聲音素材：授權未確認，不進 git（重跑 node scripts/convert-sounds.ts 產生）
+public/sounds/*.mp3
