@@ -22,6 +22,17 @@ test('skips points closer than minDistance and records t relative to start', () 
   expect(r.extend(20, 0, 1000, 1000, 532)).toEqual({ x: 0.02, y: 0, t: 32 });
 });
 
+test('current exposes the in-progress stroke and is null otherwise', () => {
+  const r = new StrokeRecorder();
+  expect(r.current).toBeNull();
+  const s = r.begin(5, 5, 10, 10, 0);
+  expect(r.current).toBe(s);
+  r.extend(9, 9, 10, 10, 16);
+  expect(r.current?.points).toHaveLength(2);
+  r.end();
+  expect(r.current).toBeNull();
+});
+
 test('end returns the stroke and pushes it; extend without begin is null', () => {
   const r = new StrokeRecorder();
   expect(r.extend(1, 1, 10, 10, 0)).toBeNull();

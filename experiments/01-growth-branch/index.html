@@ -6,9 +6,22 @@
     <title>01 畫一筆，它會長</title>
     <style>
       body { margin: 0; overflow: hidden; background: #f3eee4; }
+      canvas { display: block; }
+      #hint {
+        position: fixed;
+        left: 16px;
+        bottom: 14px;
+        color: #8a7a6a;
+        font: 13px Georgia, 'Noto Serif TC', serif;
+        opacity: 0.8;
+        pointer-events: none;
+        user-select: none;
+      }
+      #hint a { color: inherit; pointer-events: auto; }
     </style>
   </head>
   <body>
+    <div id="hint">按住滑鼠畫一筆，放開後它會開始生長 · <a href="../../index.html">實驗目錄</a></div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

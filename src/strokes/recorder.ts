@@ -12,6 +12,11 @@ export class StrokeRecorder {
     this.minDistance = opts.minDistance ?? 0.002;
   }
 
+  /** 進行中的筆觸；沒有在畫時是 null。 */
+  get current(): Stroke | null {
+    return this.active;
+  }
+
   begin(px: number, py: number, w: number, h: number, now: number): Stroke {
     this.active = {
       id: crypto.randomUUID(),
