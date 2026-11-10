@@ -534,3 +534,40 @@ body.hide-hud .ui-pop {
 .ui-bar .ui-sub {
   white-space: nowrap;
 }
+
+/* 正上方的模式切換（換頁連結） */
+.ui-modenav {
+  position: fixed;
+  z-index: 21;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--ui-shadow);
+  font: 12px var(--ui-font);
+  letter-spacing: 0.12em;
+}
+.ui-modenav a {
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--ui-soft);
+  text-decoration: none;
+}
+.ui-modenav a[href]:hover {
+  color: var(--ui-fg);
+  background: var(--ui-hover);
+}
+.ui-modenav a.on {
+  color: var(--ui-bg);
+  background: var(--ui-fg);
+}
+body.hide-hud .ui-modenav {
+  opacity: 0;
+  pointer-events: none;
+}
