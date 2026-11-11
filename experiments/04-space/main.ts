@@ -49,7 +49,7 @@ const state: State = {
   wither: { auto: true, manual: 0, graceSec: 25, heatThreshold: 0.5, fullSec: 100 },
   fall: { ...defaultFallStyle },
   arc: { ...defaultArcParams },
-  view: { autoRotate: true, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
+  view: { autoRotate: false, rotateSpeed: 0.6, fog: 0.08, shadow: 0.22 },
   sound: { enabled: true, volume: 0.8, engine: 'botanica', botanica: freshBotanicaParams() },
   bg: { choice: BG_PAPER },
 };
