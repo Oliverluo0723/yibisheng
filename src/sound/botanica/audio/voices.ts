@@ -19,10 +19,10 @@ export class GrainPool {
     }
   }
 
-  /** buffer 由呼叫端依 opts.reverse 挑好正的或反的那份 */
+  /** buffer 由呼叫端依 opts.reverse 挑好正的或反的那份；opts.at 可以排在拍子上 */
   play(buffer: Tone.ToneAudioBuffer, opts: GrainOpts): void {
     const v = this.voices.reduce((a, b) => (b.startedAt < a.startedAt ? b : a));
-    const now = Tone.now();
+    const now = Math.max(Tone.now(), opts.at ?? 0);
     if (v.player.state === 'started') v.player.stop(now);
     v.player.buffer = buffer;
     v.player.detune = opts.shift * 100;

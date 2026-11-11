@@ -37,6 +37,26 @@ export class Clock {
     return Tone.getTransport().nextSubdivision('8n');
   }
 
+  /**
+   * 每個 16 分音符呼叫一次：time 是那一拍的 AudioContext 時間，sixteenth 0..15、bar 從 0 數。
+   * 回傳取消函式。和 everyBar 一樣用 ticks 對齊格線。
+   */
+  everySixteenth(fn: (time: number, sixteenth: number, bar: number) => void): () => void {
+    const t = Tone.getTransport();
+    const stepTicks = t.PPQ / 4;
+    const nextStep = Math.ceil((t.ticks + 1) / stepTicks) * stepTicks;
+    const id = t.scheduleRepeat(
+      (time) => {
+        const ticks = t.getTicksAtTime(time);
+        const step = Math.round(ticks / stepTicks);
+        fn(time, step % 16, Math.floor(step / 16));
+      },
+      '16n',
+      `${nextStep}i`,
+    );
+    return () => t.clear(id);
+  }
+
   /** 每小節呼叫一次，time 是小節線的 AudioContext 時間；回傳取消函式 */
   everyBar(fn: (time: number) => void): () => void {
     const t = Tone.getTransport();

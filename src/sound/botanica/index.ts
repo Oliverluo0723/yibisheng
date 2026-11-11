@@ -41,6 +41,7 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
   const seed = Date.now();
   const layerRng = mulberry32(seed ^ 0x9e3779b9);
   let bus: Bus | null = null;
+  let clock: Clock | null = null;
   const loader = new Loader();
   // Tone 的節點要等 AudioContext 起來才建（瀏覽器規定使用者互動後才能出聲），
   // 所以層用延遲建立的代理包起來：start() 之前呼叫都是 no-op。
@@ -55,7 +56,7 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
   } | null = null;
   const build = () => {
     bus = new Bus();
-    const clock = new Clock();
+    clock = new Clock();
     layers = {
       drums: new Drums(bus, loader, clock, layerRng),
       piano: new Piano(bus, loader, clock, layerRng),
@@ -70,6 +71,8 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
     seed,
     now: () => performance.now(),
     store: loader,
+    // engine.start() 先 await output.start()（會 build）才註冊，所以 clock 已經在
+    clock: { everySixteenth: (fn) => (clock ? clock.everySixteenth(fn) : () => {}) },
     bed: {
       start: () => layers?.bed.start(),
       setEnabled: (b) => layers?.bed.setEnabled(b),
