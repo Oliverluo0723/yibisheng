@@ -11,14 +11,13 @@ const g = (energy: number, evenness = 1): Gesture => ({
 
 test('慢而穩的一筆：4 分、低音域、正放、長切片', () => {
   const v = makeTreeVoice(1, g(0.05));
-  expect(v).toMatchObject({ subdivision: 4, register: 'low', lengthSec: 1.2 });
-  expect(['piano', 'strings', 'clarinet']).toContain(v.role);
-  expect(v.gainDb).toBe(v.role === 'strings' ? -18 : -6);
+  expect(v).toMatchObject({ subdivision: 4, register: 'low', lengthSec: 0.4, gainDb: -6 });
+  expect(['piano', 'clarinet', 'kalimba']).toContain(v.role);
 });
 
 test('快而果決的一筆：16 分、高音域、短切片', () => {
   const v = makeTreeVoice(1, g(0.45));
-  expect(v).toMatchObject({ subdivision: 16, register: 'high', lengthSec: 0.35, gainDb: -10 });
+  expect(v).toMatchObject({ subdivision: 16, register: 'high', lengthSec: 0.12, gainDb: -10 });
   expect(['bell', 'glitch', 'kalimba']).toContain(v.role);
 });
 
@@ -51,12 +50,14 @@ test('格子對到 16 分音符', () => {
   expect(sixteenthOf(16, 15)).toBe(15);
 });
 
-test('弦樂句（整段樂團）比同細分的其他素材小 12 dB', () => {
-  const g = { durationMs: 1000, energy: 0.05, pauses: 0, evenness: 1 };
-  const voices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((seed) => makeTreeVoice(seed, g));
-  const strings = voices.find((v) => v.role === 'strings');
-  const other = voices.find((v) => v.role !== 'strings');
-  expect(strings).toBeDefined();
-  expect(other).toBeDefined();
-  expect((strings as { gainDb: number }).gainDb).toBe((other as { gainDb: number }).gainDb - 12);
+test('弦樂句不在俳句的袋子裡（使用者：一直的長高音）', () => {
+  for (const energy of [0.05, 0.2, 0.45])
+    for (let seed = 1; seed <= 30; seed++)
+      expect(makeTreeVoice(seed, g(energy)).role).not.toBe('strings');
+});
+
+test('切片比一格短：長素材不會疊到下一拍（120 bpm 一格 4 分 = 0.5 秒、16 分 = 0.125 秒）', () => {
+  expect(makeTreeVoice(1, g(0.05)).lengthSec).toBeLessThan(0.5);
+  expect(makeTreeVoice(1, g(0.2)).lengthSec).toBeLessThan(0.25);
+  expect(makeTreeVoice(1, g(0.45)).lengthSec).toBeLessThan(0.125);
 });

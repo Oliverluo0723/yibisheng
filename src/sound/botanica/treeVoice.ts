@@ -28,8 +28,12 @@ export type TreeVoice = {
   pan: number;
 };
 
+/**
+ * 各音域抽素材的袋子。弦樂句不在裡面：它是整段樂團的句子，每拍切一段會疊成一條不斷的弦音
+ * （使用者：「押花樹就一個一直的長高音」）。
+ */
 const PALETTE: Record<Register, readonly SampleRole[]> = {
-  low: ['piano', 'strings', 'clarinet'],
+  low: ['piano', 'clarinet', 'kalimba'],
   mid: ['piano', 'bell', 'kalimba'],
   high: ['bell', 'glitch', 'kalimba'],
 };
@@ -38,13 +42,11 @@ const PALETTE: Record<Register, readonly SampleRole[]> = {
 const SLOW_MAX = 0.1;
 const MID_MAX = 0.3;
 
-/** 素材的音量折減：弦樂句是整段樂團，比單音素材大很多（使用者：「押花樹的 string 太大聲」） */
-const ROLE_TRIM_DB: Partial<Record<SampleRole, number>> = { strings: -12 };
-
+/** 切片要比一格短（120 bpm：4 分一格 0.5 秒、8 分 0.25、16 分 0.125），長素材才不會疊成持續音 */
 const BY_SUBDIVISION: Record<Subdivision, { lengthSec: number; gainDb: number }> = {
-  4: { lengthSec: 1.2, gainDb: -6 },
-  8: { lengthSec: 0.7, gainDb: -8 },
-  16: { lengthSec: 0.35, gainDb: -10 },
+  4: { lengthSec: 0.4, gainDb: -6 },
+  8: { lengthSec: 0.2, gainDb: -8 },
+  16: { lengthSec: 0.12, gainDb: -10 },
 };
 
 export function makeTreeVoice(seed: number, g: Gesture): TreeVoice {
@@ -76,7 +78,7 @@ export function makeTreeVoice(seed: number, g: Gesture): TreeVoice {
     capacity,
     pan,
     lengthSec: base.lengthSec,
-    gainDb: base.gainDb + (ROLE_TRIM_DB[role] ?? 0),
+    gainDb: base.gainDb,
   };
 }
 

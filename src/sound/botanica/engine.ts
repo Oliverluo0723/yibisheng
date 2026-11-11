@@ -331,9 +331,9 @@ export class BotanicaEngine implements SoundEngine {
         if (!s) continue;
         this.treeSamples.set(h.treeId, s);
       }
+      // 聲部 3 是根音再一次（不拉高八度：拉上去的素材會刺）
       const tone = tones[h.slot % tones.length] ?? 0;
-      const shift =
-        grainShift(keyShift(s.sourceKey, this.params.key), tone) + (h.slot === 3 ? 12 : 0);
+      const shift = grainShift(keyShift(s.sourceKey, this.params.key), tone);
       const slice = LONG_ROLES.has(h.voice.role)
         ? { offsetFrac: h.voice.sliceFrac, durationSec: h.voice.lengthSec }
         : {};

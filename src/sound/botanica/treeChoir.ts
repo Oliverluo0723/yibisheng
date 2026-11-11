@@ -8,7 +8,7 @@ import { makeTreeVoice, type TreeVoice } from './treeVoice';
 export type TreeHit = {
   treeId: number;
   voice: TreeVoice;
-  /** 和弦聲部 0..3：0 根音、1 五度、2 三度、3 根音高八度 */
+  /** 和弦聲部 0..3：0 根音、1 三度、2 五度、3 又是根音（和弦音依 chords.ts 的順序） */
   slot: number;
 };
 

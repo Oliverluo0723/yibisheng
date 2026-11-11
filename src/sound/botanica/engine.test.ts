@@ -627,3 +627,18 @@ test('生長進度點亮：剛放開只有兩格，長完才到容量', async ()
   e.onGrowth({ ...ev(1), progress: 1 }, '押花樹', 1);
   expect(hits()).toBeGreaterThan(2);
 });
+
+test('第四個聲部不再拉高八度：四株的顆粒位移都在 ±7 內', async () => {
+  const f = fake();
+  const p = calm();
+  p.trees.maxActive = 4;
+  p.trees.density = 9; // 不要機率閘，四株每拍都響
+  const e = new BotanicaEngine(p, f.deps);
+  await e.start();
+  for (let i = 1; i <= 4; i++) e.onPlantStart(i, '押花樹', info(i));
+  f.calls.length = 0;
+  for (let s = 0; s < 16; s++) f.sixteenth(s);
+  const shifts = f.calls.filter((c) => c.startsWith('grain ')).map(shift);
+  expect(shifts.length).toBeGreaterThan(0);
+  for (const x of shifts) expect(Math.abs(x)).toBeLessThanOrEqual(7);
+});
