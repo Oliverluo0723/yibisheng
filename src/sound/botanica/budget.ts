@@ -12,8 +12,9 @@ export function densityFor(aliveCount: number): number {
 }
 
 /**
- * 這一小節誰在發言：最新的 maxActive − 1 株固定在；剩下一席每兩小節輪給更早的樹
- * （bar ÷ 2 取整，對更早的樹數取餘）。更早的樹不夠就全部都在。回傳順序＝輸入順序。
+ * 這一小節誰在發言：最新的 maxActive − 1 株固定在；剩下一席每兩小節輪給更早的樹，
+ * 從最新的那株往舊的輪（bar ÷ 2 取整，對更早的樹數取餘），所以剛畫的樹一定先被聽到。
+ * 更早的樹不夠就全部都在。回傳順序＝輸入順序。
  */
 export function activeTrees<T extends { born: number }>(
   trees: readonly T[],
@@ -24,7 +25,7 @@ export function activeTrees<T extends { born: number }>(
   if (trees.length <= maxActive) return [...trees];
   const newestFirst = [...trees].sort((a, b) => b.born - a.born);
   const fixed = new Set(newestFirst.slice(0, maxActive - 1));
-  const older = newestFirst.slice(maxActive - 1).reverse();
+  const older = newestFirst.slice(maxActive - 1);
   const rotating = older[Math.floor(bar / 2) % older.length];
   return trees.filter((t) => fixed.has(t) || t === rotating);
 }

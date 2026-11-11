@@ -21,11 +21,13 @@ test('株數不超過上限就全部在', () => {
   expect(activeTrees(trees, 4, 0)).toEqual(trees);
 });
 
-test('最新的固定在，最後一席每兩小節輪給更早的樹', () => {
+test('最新的固定在，最後一席每兩小節輪給更早的樹（從新往舊）', () => {
   const trees = [t(1), t(2), t(3), t(4), t(5)];
-  expect(activeTrees(trees, 2, 0)).toEqual([t(1), t(5)]);
-  expect(activeTrees(trees, 2, 1)).toEqual([t(1), t(5)]);
-  expect(activeTrees(trees, 2, 2)).toEqual([t(2), t(5)]);
-  expect(activeTrees(trees, 2, 8)).toEqual([t(1), t(5)]);
-  expect(activeTrees(trees, 1, 2)).toEqual([t(2)]);
+  expect(activeTrees(trees, 2, 0)).toEqual([t(4), t(5)]);
+  expect(activeTrees(trees, 2, 1)).toEqual([t(4), t(5)]);
+  expect(activeTrees(trees, 2, 2)).toEqual([t(3), t(5)]);
+  expect(activeTrees(trees, 2, 8)).toEqual([t(4), t(5)]);
+  // 只有一席時也是從最新的開始輪：剛畫的樹一定先被聽到
+  expect(activeTrees(trees, 1, 0)).toEqual([t(5)]);
+  expect(activeTrees(trees, 1, 2)).toEqual([t(4)]);
 });
