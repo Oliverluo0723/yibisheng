@@ -1,9 +1,9 @@
 {
-  "name": "p5-botanica",
+  "name": "yibisheng",
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "p5.js × Botanica — 互動視覺藝術實驗",
+  "description": "一筆生 — 畫一筆，它會長。p5.js × Botanica 互動視覺作品",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
