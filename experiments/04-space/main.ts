@@ -26,6 +26,7 @@ import { createBotanicaEngine, freshBotanicaParams } from '../../src/sound/botan
 import type { SoundEngine, WitherEvent } from '../../src/sound/engine';
 import { Heat } from '../../src/sound/theory/heat';
 import { WebAudioEngine } from '../../src/sound/webaudio';
+import { analyzeGesture, type GestureSample } from '../../src/strokes/gesture';
 import type { Thumb } from '../../src/ui/panels';
 import { BG_PAPER, BG_SAMPLES, BG_USER } from '../02-brushes/backgrounds';
 import { createUI, SPECIES, type State } from './panel';
@@ -214,6 +215,8 @@ type Drawing = {
   /** 這一筆要長什麼（SPECIES 的索引） */
   kind: number;
   color: THREE.Color;
+  /** 每幀的筆速（0..1），放開後交給聲音分析手勢 */
+  samples: GestureSample[];
 };
 let drawing: Drawing | null = null;
 /** 每一筆：畫出來的主莖（PlantView）+ 放開後長出的東西 */
@@ -225,6 +228,8 @@ type Item = {
   voice?: string;
   /** 押花樹才有：這株的枯（從出生時的乾燥時間算起） */
   wither?: PlantWither;
+  /** 這株的識別（= 種子），聲音用它認出是哪一株 */
+  id?: number;
 };
 let items: Item[] = [];
 
@@ -298,6 +303,7 @@ function beginDraw(x: number, y: number): boolean {
     worldPerPx,
     kind: state.species.kind,
     color,
+    samples: [],
   };
   renderHud();
   return true;
@@ -434,6 +440,8 @@ function finishDrawing() {
   const tint = sp.useSwatch ? d.color : undefined;
   const fp = { density: sp.density, height: sp.height };
   item.voice = SPECIES[d.kind]?.name;
+  item.id = seed;
+  const info = { id: seed, gesture: analyzeGesture(d.samples) };
   // 這一筆算進熱度；放開那一刻的熱度決定它長多少（押花樹）
   const h = heat.value(now);
   heat.add(now, ARC_HEAT_BUMP.plant);
@@ -443,7 +451,7 @@ function finishDrawing() {
     d.view.plant = new Plant3D(d.points, params, seed, d.normal);
     d.view.salt = seed;
     item.wither = new PlantWither(witherClock.seconds);
-    engine().onPlantStart?.(seed, item.voice);
+    engine().onPlantStart?.(seed, item.voice, info);
     if (arcLevel(h, state.arc).burst) status('翻面：這一筆長滿');
     return;
   }
@@ -455,14 +463,17 @@ function finishDrawing() {
   else grower = new StockView(planStock(d.points, fp, rng), now, tint);
   item.grower = grower;
   scene.add(grower.group);
-  engine().onPlantStart?.(seed, item.voice);
+  engine().onPlantStart?.(seed, item.voice, info);
 }
 
 function stepDrawing() {
   const d = drawing;
   if (!d) return;
   const s = d.lifted ? pen.step(d.tx, d.ty) : pen.step(mouseX, mouseY);
-  if (!d.lifted) witherClock.activity(performance.now());
+  if (!d.lifted) {
+    witherClock.activity(performance.now());
+    d.samples.push({ t: performance.now(), speed: Math.min(1, s.speed / penParams.maxSpeed) });
+  }
   const w = screenToPlane(s.x, s.y, d.plane);
   if (w) {
     // 押花樹的主莖粗；草和花的那一筆只是細細的「種下去的線」
@@ -722,21 +733,23 @@ renderer.setAnimationLoop((now: number) => {
     x: Math.min(1, Math.max(0, (at.x + 1.5) / 3)),
     y: Math.min(1, Math.max(0, 0.5 - at.y / 3)),
   });
-  const sound = (events: Growth3DEvent[], voice: string | undefined) => {
+  const sound = (events: Growth3DEvent[], voice: string | undefined, id: number | undefined) => {
     for (const e of events)
       heat.add(now, e.kind === 'leaf' ? ARC_HEAT_BUMP.leaf : ARC_HEAT_BUMP.branch);
     if (events.length > 0) witherClock.activity(now);
     if (!state.sound.enabled) return;
     for (const e of events) {
-      engine().onGrowth({ kind: e.kind, ...screen01(e.at), depth: e.depth, age: e.age }, voice);
+      engine().onGrowth({ kind: e.kind, ...screen01(e.at), depth: e.depth, age: e.age }, voice, id);
     }
   };
+  // 鼓、鋼琴、俳句都吃畫面這份熱度（筆重枝葉輕）
+  botanica.setHeat(heat.value(now));
   witherClock.opts.graceMs = state.wither.graceSec * 1000;
   witherClock.opts.heatThreshold = state.wither.heatThreshold;
   const dry = witherClock.tick(now, heat.value(now));
   for (const it of items) {
     const p = it.view.plant;
-    if (p?.alive) sound(p.step(dt), it.voice);
+    if (p?.alive) sound(p.step(dt), it.voice, it.id);
     // 枯：跟著乾燥時鐘（只增不減）；「枯跟熱度」關掉時只看手動滑桿（除錯，可來回拉）
     if (it.wither) {
       it.view.wither = state.wither.auto
@@ -748,10 +761,10 @@ renderer.setAnimationLoop((now: number) => {
     if (state.sound.enabled) {
       for (const e of fell) {
         const ev: WitherEvent = { kind: e.kind, ...screen01(e.at), depth: e.depth };
-        engine().onWither?.(ev, it.voice);
+        engine().onWither?.(ev, it.voice, it.id);
       }
     }
-    if (it.grower?.alive) sound(it.grower.step(now), it.voice);
+    if (it.grower?.alive) sound(it.grower.step(now), it.voice, it.id);
     // 長完那一刻通知聲音（草一直隨風晃、永遠 alive，不會觸發）
     const alive = Boolean(p?.alive || it.grower?.alive);
     if (it.wasAlive && !alive && state.sound.enabled) engine().onPlantDone?.();

@@ -192,6 +192,10 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
       toggle(panel, '開', b[key], 'enabled', changed, parent);
       slider(panel, '音量', b[key], 'volume', 0, 1, 0.01, changed, parent);
     }
+    section(panel, '俳句：一株一個節奏物件（押花樹）', parent);
+    toggle(panel, '開', b.trees, 'enabled', changed, parent);
+    slider(panel, '同時幾株（0 = 跟熱度）', b.trees, 'maxActive', 0, 6, 1, changed, parent);
+    slider(panel, '密度', b.trees, 'density', 0.2, 2, 0.05, changed, parent);
   }
 
   function renderSpecies(parent: HTMLElement) {
