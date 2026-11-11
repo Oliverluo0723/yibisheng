@@ -87,6 +87,7 @@ export function createBotanicaEngine(params: BotanicaParams): BotanicaEngine {
     },
     grains: {
       grain: (id, o) => layers?.grains.grain(id, o),
+      setLowpass: (hz) => layers?.grains.setLowpass(hz),
       setEnabled: (b) => layers?.grains.setEnabled(b),
       setVolume: (v) => layers?.grains.setVolume(v),
       dispose: () => layers?.grains.dispose(),

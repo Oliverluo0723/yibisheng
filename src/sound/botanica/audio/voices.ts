@@ -7,14 +7,14 @@ type Voice = { player: Tone.GrainPlayer; panner: Tone.Panner; gain: Tone.Gain; s
 export class GrainPool {
   private readonly voices: Voice[] = [];
 
-  /** out = 乾聲；send = 送殘響（顆粒也要糊進同一個空間，不能是乾乾的「叮」） */
-  constructor(out: Tone.ToneAudioNode, send: Tone.ToneAudioNode, size = 8) {
+  /** out = 乾聲；send = 送殘響（顆粒也要糊進同一個空間，不能是乾乾的「叮」）；省略 = 由 out 之後的節點自己分 */
+  constructor(out: Tone.ToneAudioNode, send: Tone.ToneAudioNode | undefined, size = 8) {
     for (let i = 0; i < size; i++) {
       const player = new Tone.GrainPlayer({ grainSize: 0.2, overlap: 0.1 });
       const panner = new Tone.Panner(0);
       const gain = new Tone.Gain(1);
       player.chain(panner, gain, out);
-      gain.connect(send);
+      if (send) gain.connect(send);
       this.voices.push({ player, panner, gain, startedAt: Number.NEGATIVE_INFINITY });
     }
   }

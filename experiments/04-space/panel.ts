@@ -192,6 +192,17 @@ export function createUI(s: State, pen: PenParams, actions: Actions) {
       toggle(panel, '開', b[key], 'enabled', changed, parent);
       slider(panel, '音量', b[key], 'volume', 0, 1, 0.01, changed, parent);
     }
+    slider(
+      panel,
+      '顆粒低通 Hz（太刺耳就往下拉）',
+      b.grains,
+      'lowpassHz',
+      500,
+      12000,
+      100,
+      changed,
+      parent,
+    );
     section(panel, '俳句：一株一個節奏物件（押花樹）', parent);
     toggle(panel, '開', b.trees, 'enabled', changed, parent);
     slider(panel, '同時幾株（0 = 跟熱度）', b.trees, 'maxActive', 0, 6, 1, changed, parent);

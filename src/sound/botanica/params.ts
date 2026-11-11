@@ -12,7 +12,8 @@ export type BotanicaParams = {
   bloom: LayerParams;
   /** 弦樂拉長的和弦（和綻放同一組開關，面板上不分開） */
   pad: LayerParams;
-  grains: LayerParams;
+  /** 顆粒（分枝與俳句）：多一個低通，高頻太刺耳時往下拉 */
+  grains: LayerParams & { lowpassHz: number };
   drips: LayerParams;
   drums: LayerParams;
   piano: LayerParams;
@@ -32,7 +33,7 @@ export const defaultBotanicaParams: BotanicaParams = {
   bed: { enabled: true, volume: 0.25 },
   bloom: { enabled: true, volume: 0.7 },
   pad: { enabled: true, volume: 0.8 },
-  grains: { enabled: true, volume: 0.9 },
+  grains: { enabled: true, volume: 0.9, lowpassHz: 3000 },
   drips: { enabled: true, volume: 0.6 },
   drums: { enabled: true, volume: 0.5 },
   piano: { enabled: true, volume: 0.5 },

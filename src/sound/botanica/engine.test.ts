@@ -41,6 +41,7 @@ const fake = () => {
     bloom: { ...layer, bloom: (id, o) => calls.push(`bloom ${id} shift=${o.shift}`) },
     grains: {
       ...layer,
+      setLowpass: (hz) => calls.push(`lowpass ${hz}`),
       grain: (id, o) =>
         calls.push(`grain ${id} shift=${o.shift} db=${o.gainDb}${o.durationSec ? ' slice' : ''}`),
     },
@@ -515,4 +516,15 @@ test('外部熱度接管鼓', () => {
   e.setHeat(null);
   e.poll(0);
   expect(f.levels.at(-1)).toMatchObject({ perc: 0, kit: 0 });
+});
+
+test('顆粒的低通從面板推下去（使用者：高頻太刺耳）', () => {
+  const f = fake();
+  const p = calm();
+  const e = new BotanicaEngine(p, f.deps);
+  e.applyParams();
+  expect(f.calls).toContain('lowpass 3000');
+  p.grains.lowpassHz = 1500;
+  e.applyParams();
+  expect(f.calls.at(-1)).toBe('lowpass 1500');
 });

@@ -420,6 +420,7 @@ export class BotanicaEngine implements SoundEngine {
       layer.setEnabled(this.params[name].enabled);
       layer.setVolume(this.params[name].volume);
     }
+    this.deps.grains.setLowpass(this.params.grains.lowpassHz);
   }
 
   setVolume(v: number): void {

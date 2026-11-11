@@ -68,6 +68,8 @@ export interface BloomLayer extends Layer {
 
 export interface GrainLayer extends Layer {
   grain(sampleId: string, opts: GrainOpts): void;
+  /** 整層的低通（Hz），乾聲和殘響送出都過 */
+  setLowpass(hz: number): void;
 }
 
 export type DripOpts = { reverse?: boolean; gainDb?: number };
