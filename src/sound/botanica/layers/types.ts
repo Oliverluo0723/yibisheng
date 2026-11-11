@@ -31,7 +31,15 @@ export type GrainOpts = {
   offsetFrac?: number;
   /** 長素材切片：播幾秒就停 */
   durationSec?: number;
+  /** 出聲時間（AudioContext 秒）；省略＝現在 */
+  at?: number;
 };
+
+/** 拍子：合唱靠它每個 16 分音符醒一次 */
+export interface ClockDep {
+  /** 每個 16 分音符呼叫；sixteenth 0..15、bar 從 0 數；回傳取消函式 */
+  everySixteenth(fn: (time: number, sixteenth: number, bar: number) => void): () => void;
+}
 
 export type ChordOpts = {
   attack: number;

@@ -27,7 +27,16 @@ const fake = () => {
   const levels: { perc: number; kit: number; lowpassHz: number }[] = [];
   const phrases: { midi: number; eighth: number; velocity: number }[][] = [];
   let t = 0;
+  let tick: ((time: number, s: number, bar: number) => void) | null = null;
   const deps: EngineDeps = {
+    clock: {
+      everySixteenth: (fn) => {
+        tick = fn;
+        return () => {
+          tick = null;
+        };
+      },
+    },
     bed: { ...layer, start: () => calls.push('bed.start') },
     bloom: { ...layer, bloom: (id, o) => calls.push(`bloom ${id} shift=${o.shift}`) },
     grains: {
@@ -67,8 +76,13 @@ const fake = () => {
     tick: (ms: number) => {
       t += ms;
     },
+    sixteenth: (s: number, bar = 0) => tick?.(bar * 16 + s, s, bar),
   };
 };
+const info = (id: number) => ({
+  id,
+  gesture: { durationMs: 1000, energy: 0.5, pauses: 0, evenness: 1 },
+});
 const ev = (depth: number, x = 0.5): GrowthEvent => ({ kind: 'branch', x, y: 0.5, depth, age: 0 });
 const calm = () => ({ ...freshBotanicaParams(), randomness: 0 });
 const shift = (c: string | undefined) => Number(/shift=(-?\d+)/.exec(c ?? '')?.[1]);
@@ -424,4 +438,81 @@ test('枯：枝斷的聲音有最小間隔，連續斷十條只響一次', () =>
   f.tick(3000);
   e.onWither({ kind: 'branch', x: 0.5, y: 0.5, depth: 1 }, '押花樹');
   expect(f.calls.filter((c) => c.startsWith('glitch ')).length).toBe(2);
+});
+
+test('押花樹放開後分枝不直接掉顆粒，第 0 拍由合唱響', async () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  f.calls.length = 0;
+  e.onGrowth(ev(2), '押花樹', 1);
+  expect(f.calls.filter((c) => c.startsWith('grain'))).toEqual([]);
+  f.sixteenth(0);
+  expect(f.calls.filter((c) => c.startsWith('grain')).length).toBe(1);
+});
+
+test('素材沒載好不出聲、不丟錯', async () => {
+  const f = fake();
+  f.ready.clear();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  expect(() => f.sixteenth(0)).not.toThrow();
+  expect(f.calls.filter((c) => c.startsWith('grain'))).toEqual([]);
+});
+
+test('死過的樹只響一次尾音、之後不再響', async () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  f.calls.length = 0;
+  const w = { kind: 'branch' as const, x: 0.5, y: 0.5, depth: 1 };
+  e.onWither(w, '押花樹', 1);
+  e.onWither(w, '押花樹', 1);
+  f.tick(2000);
+  e.onWither(w, '押花樹', 1);
+  expect(f.calls.filter((c) => c.startsWith('glitch')).length).toBe(1);
+  f.sixteenth(0);
+  expect(f.calls.filter((c) => c.startsWith('grain'))).toEqual([]);
+});
+
+test('關掉俳句就回舊路：分枝直接掉顆粒、拍子沒 hit', async () => {
+  const f = fake();
+  const p = calm();
+  p.trees.enabled = false;
+  const e = new BotanicaEngine(p, f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  f.calls.length = 0;
+  e.onGrowth(ev(2), '押花樹', 1);
+  expect(f.calls.filter((c) => c.startsWith('grain')).length).toBe(1);
+  f.calls.length = 0;
+  f.sixteenth(0);
+  expect(f.calls).toEqual([]);
+});
+
+test('12 秒內第三株不再疊弦樂墊', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  e.onPlantStart(1, '押花樹', info(1));
+  f.tick(2000);
+  e.onPlantStart(2, '押花樹', info(2));
+  f.tick(2000);
+  e.onPlantStart(3, '押花樹', info(3));
+  expect(f.calls.filter((c) => c.startsWith('pad')).length).toBe(2);
+});
+
+test('外部熱度接管鼓', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  e.setHeat(0.9);
+  e.poll(0);
+  // 鼓的份量會滑向植物的 drums（押花樹 0.8），所以不是剛好 1
+  expect(f.levels.at(-1)?.perc).toBeGreaterThan(0.5);
+  expect(f.levels.at(-1)?.kit).toBeGreaterThan(0.5);
+  e.setHeat(null);
+  e.poll(0);
+  expect(f.levels.at(-1)).toMatchObject({ perc: 0, kit: 0 });
 });

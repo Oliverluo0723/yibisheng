@@ -16,6 +16,14 @@ export type BotanicaParams = {
   drips: LayerParams;
   drums: LayerParams;
   piano: LayerParams;
+  /** 俳句：一株押花樹一個節奏物件 */
+  trees: {
+    enabled: boolean;
+    /** 同時幾株響；0 = 跟熱度 */
+    maxActive: number;
+    /** 密度倍率 */
+    density: number;
+  };
 };
 
 export const defaultBotanicaParams: BotanicaParams = {
@@ -28,6 +36,7 @@ export const defaultBotanicaParams: BotanicaParams = {
   drips: { enabled: true, volume: 0.6 },
   drums: { enabled: true, volume: 0.5 },
   piano: { enabled: true, volume: 0.5 },
+  trees: { enabled: true, maxActive: 0, density: 1 },
 };
 
 /** 深拷貝一份預設值（巢狀物件不共用）。 */
