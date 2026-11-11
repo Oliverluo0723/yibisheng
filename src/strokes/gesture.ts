@@ -19,7 +19,8 @@ export type Gesture = {
   evenness: number;
 };
 
-export const EMPTY_GESTURE: Gesture = { durationMs: 0, energy: 0.5, pauses: 0, evenness: 1 };
+/** 點一下沒拖：當作中等速度的一筆 */
+export const EMPTY_GESTURE: Gesture = { durationMs: 0, energy: 0.2, pauses: 0, evenness: 1 };
 
 const PAUSE_MIN_MS = 130;
 const PAUSE_SPEED = 0.05;

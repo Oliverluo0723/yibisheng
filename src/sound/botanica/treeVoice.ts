@@ -8,7 +8,7 @@ import type { SampleRole } from './manifest';
 export type Subdivision = 4 | 8 | 16;
 
 export type TreeVoice = {
-  /** 一小節切幾格：慢 4、中 8、快 16 */
+  /** 一小節切幾格：慢 4（能量 < 0.1）、中 8（< 0.3）、快 16 */
   subdivision: Subdivision;
   register: Register;
   /** 這株固定用的素材類別 */
@@ -34,6 +34,13 @@ const PALETTE: Record<Register, readonly SampleRole[]> = {
   high: ['bell', 'glitch', 'kalimba'],
 };
 
+/** 能量低於這個是慢筆、低於下一個是中等 */
+const SLOW_MAX = 0.1;
+const MID_MAX = 0.3;
+
+/** 素材的音量折減：弦樂句是整段樂團，比單音素材大很多（使用者：「押花樹的 string 太大聲」） */
+const ROLE_TRIM_DB: Partial<Record<SampleRole, number>> = { strings: -12 };
+
 const BY_SUBDIVISION: Record<Subdivision, { lengthSec: number; gainDb: number }> = {
   4: { lengthSec: 1.2, gainDb: -6 },
   8: { lengthSec: 0.7, gainDb: -8 },
@@ -42,8 +49,9 @@ const BY_SUBDIVISION: Record<Subdivision, { lengthSec: number; gainDb: number }>
 
 export function makeTreeVoice(seed: number, g: Gesture): TreeVoice {
   const rng = mulberry32(seed);
-  const subdivision: Subdivision = g.energy < 0.25 ? 4 : g.energy < 0.6 ? 8 : 16;
-  const register: Register = g.energy < 0.25 ? 'low' : g.energy < 0.6 ? 'mid' : 'high';
+  // 門檻依實測校正：彈簧筆的速度 ÷ maxSpeed 很少超過 0.5，慢筆約 0.03、快筆約 0.4
+  const subdivision: Subdivision = g.energy < SLOW_MAX ? 4 : g.energy < MID_MAX ? 8 : 16;
+  const register: Register = g.energy < SLOW_MAX ? 'low' : g.energy < MID_MAX ? 'mid' : 'high';
   // 抽籤順序固定：素材 → 反轉 → 切片 → 聲像 → 順序
   const palette = PALETTE[register];
   const role = palette[Math.floor(rng() * palette.length)] as SampleRole;
@@ -57,6 +65,7 @@ export function makeTreeVoice(seed: number, g: Gesture): TreeVoice {
     [order[i], order[j]] = [order[j] as number, order[i] as number];
   }
   const capacity = Math.max(2, Math.round(subdivision * (0.3 + 0.3 * g.energy)));
+  const base = BY_SUBDIVISION[subdivision];
   return {
     subdivision,
     register,
@@ -66,7 +75,8 @@ export function makeTreeVoice(seed: number, g: Gesture): TreeVoice {
     order,
     capacity,
     pan,
-    ...BY_SUBDIVISION[subdivision],
+    lengthSec: base.lengthSec,
+    gainDb: base.gainDb + (ROLE_TRIM_DB[role] ?? 0),
   };
 }
 

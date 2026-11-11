@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { TreePattern } from './treePattern';
 import { makeTreeVoice } from './treeVoice';
 
-const g = { durationMs: 1000, energy: 0.5, pauses: 0, evenness: 1 };
+const g = { durationMs: 1000, energy: 0.2, pauses: 0, evenness: 1 };
 
 test('出生亮兩格、第一格是 0', () => {
   const p = new TreePattern(makeTreeVoice(1, g));

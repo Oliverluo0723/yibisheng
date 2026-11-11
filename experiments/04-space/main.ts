@@ -78,7 +78,9 @@ const heat = new Heat({ halfLifeMs: state.arc.halfLifeMs });
 /** 枯的時鐘：停手夠久、熱度夠低才走；每株從出生算，掉了的不回來 */
 const witherClock = new WitherClock();
 // 除錯：在 console 看熱度與乾燥時鐘（window.__exp04）
-Object.assign(window as unknown as Record<string, unknown>, { __exp04: { heat, witherClock } });
+Object.assign(window as unknown as Record<string, unknown>, {
+  __exp04: { heat, witherClock, botanica },
+});
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const status = (msg: string) => {

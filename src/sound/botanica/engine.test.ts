@@ -81,7 +81,7 @@ const fake = () => {
 };
 const info = (id: number) => ({
   id,
-  gesture: { durationMs: 1000, energy: 0.5, pauses: 0, evenness: 1 },
+  gesture: { durationMs: 1000, energy: 0.2, pauses: 0, evenness: 1 },
 });
 const ev = (depth: number, x = 0.5): GrowthEvent => ({ kind: 'branch', x, y: 0.5, depth, age: 0 });
 const calm = () => ({ ...freshBotanicaParams(), randomness: 0 });
