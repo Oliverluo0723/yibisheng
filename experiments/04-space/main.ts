@@ -441,6 +441,7 @@ function finishDrawing() {
   if (d.kind === 0) {
     const params = arcGrowth(state.growth, h, state.arc);
     d.view.plant = new Plant3D(d.points, params, seed, d.normal);
+    d.view.salt = seed;
     item.wither = new PlantWither(witherClock.seconds);
     engine().onPlantStart?.(seed, item.voice);
     if (arcLevel(h, state.arc).burst) status('翻面：這一筆長滿');

@@ -79,6 +79,9 @@ const DRY_STEPS = 6;
 const GRAVITY = 2.2;
 
 /** 落下的感覺：使用者可調 */
+/** 斷枝碰地後轉到躺平的速度（弧度 / s） */
+const SETTLE_RATE = 3;
+
 export type FallStyle = {
   /** 葉子飄落的終端速度（世界單位 / s） */
   leafFall: number;
@@ -176,7 +179,8 @@ type Chain = {
   /** 斷點（這支芽出生的位置） */
   base: THREE.Vector3;
   breakAt: number;
-  phase: 'on' | 'fall' | 'down';
+  /** on 在枝上；fall 翻滾落下；settle 碰地後轉到躺平；down 停了 */
+  phase: 'on' | 'fall' | 'settle' | 'down';
   pos: THREE.Vector3;
   quat: THREE.Quaternion;
   vel: THREE.Vector3;
@@ -206,6 +210,8 @@ export class PlantView {
   /** 地面的 y，掉下來的東西停在這 */
   groundY = -1.25;
   fall: FallStyle = { ...defaultFallStyle };
+  /** 這株的鹽（用種子）：決定葉、枝各自什麼時候掉，不然幾株會齊步 */
+  salt = 0;
   private events: WitherViewEvent[] = [];
   private readonly segs: PlantSeg[] = [];
   private readonly chains = new Map<number, Chain>();
@@ -317,7 +323,10 @@ export class PlantView {
     if (hit) return hit;
     const maxDepth = Math.max(1, this.plant?.params.maxDepth ?? 3);
     // 越深（越細、越末梢）越早斷：最深 0.5 左右，第 0 層要拉到快滿才斷
-    const breakAt = Math.min(0.98, 0.5 + 0.42 * (1 - depth / maxDepth) + hash01(tip + 0.5) * 0.08);
+    const breakAt = Math.min(
+      0.98,
+      0.5 + 0.42 * (1 - depth / maxDepth) + hash01(tip + 0.5 + this.salt * 7.13) * 0.08,
+    );
     const c: Chain = {
       tip,
       depth,
@@ -356,6 +365,9 @@ export class PlantView {
       if (c.phase === 'fall') {
         this.stepChainFall(c, dt);
         moved = true;
+      } else if (c.phase === 'settle') {
+        this.stepChainSettle(c, dt);
+        moved = true;
       }
     }
     if (moved) this.stems.instanceMatrix.needsUpdate = true;
@@ -365,9 +377,11 @@ export class PlantView {
       } else if (w < l.detachAt) {
         this.restoreLeaf(l);
       }
+      // 脫離點前 0.3 的區間慢慢變褐；脫離點很早的葉子就從 0 開始算，活著的樹不會一出生就褐
+      const start = Math.max(0, l.detachAt - 0.3);
       const dry =
         l.phase === 'on'
-          ? Math.round(Math.min(1, Math.max(0, (w - (l.detachAt - 0.3)) / 0.3)) * DRY_STEPS)
+          ? Math.round(Math.min(1, Math.max(0, (w - start) / (l.detachAt - start))) * DRY_STEPS)
           : DRY_STEPS;
       if (dry !== l.dry) {
         l.dry = dry;
@@ -408,21 +422,49 @@ export class PlantView {
     c.vel.y -= GRAVITY * dt;
     c.pos.addScaledVector(c.vel, dt);
     c.angle += c.angVel * dt;
-    let minY = this.placeChain(c);
+    c.quat.setFromAxisAngle(c.axis, c.angle);
+    const minY = this.placeChain(c);
     if (minY < this.groundY) {
       c.pos.y += this.groundY - minY;
-      minY = this.placeChain(c);
-      c.phase = 'down';
+      this.placeChain(c);
+      c.vel.set(0, 0, 0);
+      c.phase = 'settle';
     }
   }
 
-  private placeChain(c: Chain): number {
-    c.quat.setFromAxisAngle(c.axis, c.angle);
+  /** 碰地之後：以碰地的那一點為軸，把枝的主方向轉到接近水平，再停 */
+  private stepChainSettle(c: Chain, dt: number): void {
+    const shape = this.chainShape(c);
+    if (!shape || shape.length < 0.02 || Math.abs(shape.elevation) < 0.08) {
+      c.phase = 'down';
+      return;
+    }
+    // 要轉到的方向：同樣的水平朝向、y 歸零
+    const dir = shape.dir;
+    const flat = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+    const full = new THREE.Quaternion().setFromUnitVectors(dir, flat);
+    const frac = Math.min(1, (SETTLE_RATE * dt) / Math.abs(shape.elevation));
+    const R = new THREE.Quaternion().slerp(full, frac);
+    // 以最低點 P 為軸心轉：x'' = R(x' − P) + P；x' = quat(x − base) + base + pos
+    const P = shape.lowest;
+    c.quat.premultiply(R);
+    c.pos.add(c.base).sub(P).applyQuaternion(R).add(P).sub(c.base);
+    const minY = this.placeChain(c);
+    c.pos.y += this.groundY - minY;
+    this.placeChain(c);
+  }
+
+  private chainMatrix(c: Chain): THREE.Matrix4 {
     // 以斷點為軸心轉，再平移
-    const M = new THREE.Matrix4()
+    return new THREE.Matrix4()
       .makeTranslation(c.base.x + c.pos.x, c.base.y + c.pos.y, c.base.z + c.pos.z)
       .multiply(new THREE.Matrix4().makeRotationFromQuaternion(c.quat))
       .multiply(new THREE.Matrix4().makeTranslation(-c.base.x, -c.base.y, -c.base.z));
+  }
+
+  /** 寫入這條枝每一段的矩陣，回傳最低點的 y */
+  private placeChain(c: Chain): number {
+    const M = this.chainMatrix(c);
     let minY = Number.POSITIVE_INFINITY;
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -433,6 +475,30 @@ export class PlantView {
       this.setCylinder(this.stems, s.index, a, b, s.radius);
     }
     return minY;
+  }
+
+  /** 這條枝現在的樣子：斷點到最遠端的方向、長度、仰角，以及最低點 */
+  private chainShape(
+    c: Chain,
+  ): { dir: THREE.Vector3; length: number; elevation: number; lowest: THREE.Vector3 } | null {
+    if (c.segs.length === 0) return null;
+    const M = this.chainMatrix(c);
+    const base = c.base.clone().applyMatrix4(M);
+    const far = base.clone();
+    const lowest = base.clone();
+    const p = new THREE.Vector3();
+    for (const s of c.segs) {
+      for (const e of [s.a, s.b]) {
+        p.set(e.x, e.y, e.z).applyMatrix4(M);
+        if (p.distanceToSquared(base) > far.distanceToSquared(base)) far.copy(p);
+        if (p.y < lowest.y) lowest.copy(p);
+      }
+    }
+    const v = far.clone().sub(base);
+    const length = v.length();
+    if (length < 1e-6) return { dir: new THREE.Vector3(1, 0, 0), length, elevation: 0, lowest };
+    const dir = v.divideScalar(length);
+    return { dir, length, elevation: Math.atan2(dir.y, Math.hypot(dir.x, dir.z)), lowest };
   }
 
   private dropLeaf(l: LeafState): void {
@@ -505,7 +571,7 @@ export class PlantView {
     this.group.add(mesh);
     const chain = this.chain(leaf.tip, leaf.depth, leaf.at);
     // 葉子自己會掉（0.08..0.63），枝斷了也一起掉，取早的
-    const fallAt = 0.08 + hash01(this.leaves.length + 0.25) * 0.55;
+    const fallAt = 0.08 + hash01(this.leaves.length + 0.25 + this.salt * 7.13) * 0.55;
     this.leaves.push({
       mesh,
       born: nowMs,
@@ -541,5 +607,14 @@ export class PlantView {
   }
   get stemCountForTest(): number {
     return this.stemCount;
+  }
+  get chainsForTest(): { phase: Chain['phase']; elevation: number }[] {
+    return [...this.chains.values()].map((c) => ({
+      phase: c.phase,
+      elevation: this.chainShape(c)?.elevation ?? 0,
+    }));
+  }
+  get leavesForTest(): { dry: number; detachAt: number }[] {
+    return this.leaves.map((l) => ({ dry: l.dry, detachAt: l.detachAt }));
   }
 }

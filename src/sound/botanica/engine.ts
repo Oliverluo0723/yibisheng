@@ -77,6 +77,7 @@ const PAD_COLOURS: Partial<Record<BloomColour, Register>> = {
   padHigh: 'high',
 };
 /** 這些類別是幾秒到十幾秒的長素材，當顆粒用時要切片 */
+const BRANCH_SOUND_GAP_MS = 1500;
 const LONG_ROLES = new Set<SampleRole>(['piano', 'glitchfx', 'strings', 'swell', 'clarinet']);
 
 export class BotanicaEngine implements SoundEngine {
@@ -92,6 +93,8 @@ export class BotanicaEngine implements SoundEngine {
   private readonly pickers = new Map<SampleRole, FreshPicker>();
   private readonly heatState = new Heat();
   private nextPhraseAt: number | null = null;
+  /** 枝斷的聲音至少隔這麼久（ms）：一株全枯時幾十條枝擠在幾秒內斷，不能每條都響 */
+  private lastBranchSoundAt = Number.NEGATIVE_INFINITY;
   /** 最近放開的植物的聲音：決定鼓與鋼琴的份量 */
   private voice: Voice = voiceFor(undefined);
   private mix = { drums: 1, piano: 1 };
@@ -231,8 +234,10 @@ export class BotanicaEngine implements SoundEngine {
       this.grainFor(e.depth, e.x, v, { gainDb: v.grains.gainDb - 16, reverseChance: 0.6 });
       return;
     }
+    if (now - this.lastBranchSoundAt < BRANCH_SOUND_GAP_MS) return;
     const s = this.pick(this.rng() < 0.5 ? 'swell' : 'glitchfx');
     if (!s) return;
+    this.lastBranchSoundAt = now;
     this.deps.drips.glitch(s.id, keyShift(s.sourceKey, this.params.key), {
       reverse: true,
       gainDb: -6,

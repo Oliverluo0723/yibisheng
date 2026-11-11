@@ -409,3 +409,19 @@ test('枯：葉落發很輕的顆粒、枝斷走偶發層反轉；都不推熱�
   }
   expect(f.calls.some((c) => c.startsWith('drip ') || c.startsWith('glitch '))).toBe(true);
 });
+
+test('枯：枝斷的聲音有最小間隔，連續斷十條只響一次', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  e.onPlantStart(1, '押花樹');
+  f.tick(20000);
+  f.calls.length = 0;
+  for (let i = 0; i < 10; i++) {
+    f.tick(100);
+    e.onWither({ kind: 'branch', x: 0.5, y: 0.5, depth: 1 }, '押花樹');
+  }
+  expect(f.calls.filter((c) => c.startsWith('glitch ')).length).toBe(1);
+  f.tick(3000);
+  e.onWither({ kind: 'branch', x: 0.5, y: 0.5, depth: 1 }, '押花樹');
+  expect(f.calls.filter((c) => c.startsWith('glitch ')).length).toBe(2);
+});
