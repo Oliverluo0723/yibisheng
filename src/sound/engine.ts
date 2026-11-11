@@ -23,4 +23,8 @@ export interface SoundEngine {
   onPlantDone?(): void;
   /** 枯的事件（可選）：不算活動、不推熱度 */
   onWither?(e: WitherEvent, voice?: string, plantId?: number): void;
+  /** 一株枯到幾成（0..1，只增不減；可選）：俳句照比例熄格，到 1 響尾音 */
+  onPlantWither?(plantId: number, progress: number, voice?: string): void;
+  /** 一株從畫面上被拿掉（復原、清空；可選）：之後不該再響 */
+  onPlantRemove?(plantId: number): void;
 }

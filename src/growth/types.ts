@@ -15,6 +15,8 @@ export type GrowthEvent = {
   y: number;
   depth: number;
   age: number;
+  /** 這株長到幾成（age ÷ life，0..1）；沒有生命上限的植物不給 */
+  progress?: number;
 };
 
 export type GrowthParams = {

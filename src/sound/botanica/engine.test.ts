@@ -463,20 +463,19 @@ test('素材沒載好不出聲、不丟錯', async () => {
   expect(f.calls.filter((c) => c.startsWith('grain'))).toEqual([]);
 });
 
-test('死過的樹只響一次尾音、之後不再響', async () => {
+test('死過的樹只響一次尾音、之後不再響（枝斷事件也不再出聲）', async () => {
   const f = fake();
   const e = new BotanicaEngine(calm(), f.deps);
   await e.start();
   e.onPlantStart(1, '押花樹', info(1));
   f.calls.length = 0;
-  const w = { kind: 'branch' as const, x: 0.5, y: 0.5, depth: 1 };
-  e.onWither(w, '押花樹', 1);
-  e.onWither(w, '押花樹', 1);
+  e.onPlantWither(1, 1, '押花樹');
+  e.onPlantWither(1, 1, '押花樹');
   f.tick(2000);
-  e.onWither(w, '押花樹', 1);
+  e.onWither({ kind: 'branch', x: 0.5, y: 0.5, depth: 1 }, '押花樹', 1);
   expect(f.calls.filter((c) => c.startsWith('glitch')).length).toBe(1);
   f.sixteenth(0);
-  expect(f.calls.filter((c) => c.startsWith('grain'))).toEqual([]);
+  expect(f.calls.filter((c) => c.startsWith('grain '))).toEqual([]);
 });
 
 test('關掉俳句就回舊路：分枝直接掉顆粒、拍子沒 hit', async () => {
@@ -527,4 +526,104 @@ test('顆粒的低通從面板推下去（使用者：高頻太刺耳）', () =>
   p.grains.lowpassHz = 1500;
   e.applyParams();
   expect(f.calls.at(-1)).toBe('lowpass 1500');
+});
+
+test('復原／清空通知聲音：移除後那株不再響、也不占株數', async () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  e.onPlantRemove(1);
+  f.calls.length = 0;
+  f.sixteenth(0);
+  expect(f.calls.filter((c) => c.startsWith('grain '))).toEqual([]);
+});
+
+test('弦樂墊讓位只對俳句：俳句關掉時第三株照常疊墊', () => {
+  const f = fake();
+  const p = calm();
+  p.trees.enabled = false;
+  const e = new BotanicaEngine(p, f.deps);
+  for (let i = 1; i <= 3; i++) {
+    e.onPlantStart(i, '押花樹', info(i));
+    f.tick(2000);
+  }
+  expect(f.calls.filter((c) => c.startsWith('pad')).length).toBe(3);
+});
+
+test('弦樂墊讓位只對俳句：曼珠沙華第三株照常疊墊', () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  for (let i = 1; i <= 3; i++) {
+    e.onPlantStart(i, '曼珠沙華');
+    f.tick(2000);
+  }
+  expect(f.calls.filter((c) => c.startsWith('pad')).length).toBe(3);
+});
+
+test('玩到一半關掉俳句：合唱清空，再打開舊樹不會響', async () => {
+  const f = fake();
+  const p = calm();
+  const e = new BotanicaEngine(p, f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  p.trees.enabled = false;
+  e.applyParams();
+  p.trees.enabled = true;
+  e.applyParams();
+  f.calls.length = 0;
+  f.sixteenth(0);
+  expect(f.calls.filter((c) => c.startsWith('grain '))).toEqual([]);
+});
+
+test('俳句關著時種的樹，打開後枝斷還是走舊的枝斷聲', async () => {
+  const f = fake();
+  const p = calm();
+  p.trees.enabled = false;
+  const e = new BotanicaEngine(p, f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  p.trees.enabled = true;
+  e.applyParams();
+  f.calls.length = 0;
+  e.onWither({ kind: 'branch', x: 0.5, y: 0.5, depth: 1 }, '押花樹', 1);
+  expect(f.calls.filter((c) => c.startsWith('glitch')).length).toBe(1);
+});
+
+test('枯的進度：格子照比例熄，到 1 才響一次尾音；枝斷事件本身不再熄格', async () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  e.onGrowth({ ...ev(1), progress: 1 }, '押花樹', 1); // 點滿
+  f.calls.length = 0;
+  const w = { kind: 'branch' as const, x: 0.5, y: 0.5, depth: 1 };
+  for (let i = 0; i < 10; i++) e.onWither(w, '押花樹', 1);
+  f.sixteenth(0);
+  expect(f.calls.filter((c) => c.startsWith('grain ')).length).toBe(1); // 還活著、還在響
+  expect(f.calls.filter((c) => c.startsWith('glitch'))).toEqual([]);
+  e.onPlantWither(1, 0.5, '押花樹');
+  expect(f.calls.filter((c) => c.startsWith('glitch'))).toEqual([]);
+  e.onPlantWither(1, 1, '押花樹');
+  e.onPlantWither(1, 1, '押花樹');
+  expect(f.calls.filter((c) => c.startsWith('glitch')).length).toBe(1);
+  f.calls.length = 0;
+  f.sixteenth(0);
+  expect(f.calls.filter((c) => c.startsWith('grain '))).toEqual([]);
+});
+
+test('生長進度點亮：剛放開只有兩格，長完才到容量', async () => {
+  const f = fake();
+  const e = new BotanicaEngine(calm(), f.deps);
+  await e.start();
+  e.onPlantStart(1, '押花樹', info(1));
+  const hits = () => {
+    f.calls.length = 0;
+    for (let s = 0; s < 16; s++) f.sixteenth(s);
+    return f.calls.filter((c) => c.startsWith('grain ')).length;
+  };
+  for (let i = 0; i < 30; i++) e.onGrowth({ ...ev(1), progress: 0.05 }, '押花樹', 1);
+  expect(hits()).toBe(2);
+  e.onGrowth({ ...ev(1), progress: 1 }, '押花樹', 1);
+  expect(hits()).toBeGreaterThan(2);
 });

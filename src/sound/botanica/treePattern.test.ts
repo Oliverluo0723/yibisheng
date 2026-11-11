@@ -40,3 +40,20 @@ test('8 分的第 3 格落在第 6 個 16 分音符', () => {
   expect(p.hitsAt(6)).toBe(true);
   expect(p.hitsAt(5)).toBe(false);
 });
+
+test('lightTo／dimTo 照目標格數走；peakLit 記最多亮過幾格', () => {
+  const v = { ...makeTreeVoice(1, g), capacity: 6 };
+  const p = new TreePattern(v);
+  expect(p.lightTo(4)).toBe(true);
+  expect(p.lit.length).toBe(4);
+  expect(p.lightTo(3)).toBe(false); // 只往上，不往下
+  expect(p.lightTo(99)).toBe(true);
+  expect(p.lit.length).toBe(6);
+  expect(p.peakLit).toBe(6);
+  expect(p.dimTo(2)).toBe(true);
+  expect(p.lit.length).toBe(2);
+  expect(p.dimTo(5)).toBe(false); // 只往下，不往上
+  expect(p.dimTo(0)).toBe(true);
+  expect(p.dead).toBe(true);
+  expect(p.peakLit).toBe(6);
+});

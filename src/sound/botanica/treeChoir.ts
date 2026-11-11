@@ -40,15 +40,41 @@ export class TreeChoir {
         break;
       }
     }
+    this.remove(id); // 同一個 id 再 add（種子撞到）：先放掉舊的聲部
     this.usedSlots.add(slot);
     this.added++;
     this.trees.set(id, { voice, pattern: new TreePattern(voice), slot, born });
     return voice;
   }
 
-  /** 分枝：點亮一格 */
-  grow(id: number): void {
-    this.trees.get(id)?.pattern.light();
+  /**
+   * 分枝：給了生長進度（0..1）就照比例點亮（放開兩格、長完到容量，只增不減）；
+   * 沒給就點亮一格（舊行為）。
+   */
+  grow(id: number, progress?: number): void {
+    const t = this.trees.get(id);
+    if (!t) return;
+    if (progress === undefined) {
+      t.pattern.light();
+      return;
+    }
+    const p = Math.min(1, Math.max(0, progress));
+    t.pattern.lightTo(Math.round(2 + (t.voice.capacity - 2) * p));
+  }
+
+  /**
+   * 枯的進度（0..1）→ 格子照比例熄：剩 peakLit × (1 − 進度) 格，到 1 全熄＝死（釋放聲部並移除）。
+   * 審查發現：一株有幾十到幾百條枝，照「枝斷一次熄一格」第幾次就死了，聲音在枯的開頭就沒了。
+   */
+  witherTo(id: number, progress: number): 'dimmed' | 'died' | 'none' {
+    const t = this.trees.get(id);
+    if (!t) return 'none';
+    const p = Math.min(1, Math.max(0, progress));
+    const target = p >= 1 ? 0 : Math.round(t.pattern.peakLit * (1 - p));
+    if (!t.pattern.dimTo(target)) return 'none';
+    if (!t.pattern.dead) return 'dimmed';
+    this.remove(id);
+    return 'died';
   }
 
   /** 枝斷：熄一格；死了釋放聲部並移除 */
@@ -65,6 +91,12 @@ export class TreeChoir {
     if (!t) return;
     this.trees.delete(id);
     this.usedSlots.delete(t.slot);
+  }
+
+  /** 全部移除（清空畫布、關掉俳句） */
+  clear(): void {
+    this.trees.clear();
+    this.usedSlots.clear();
   }
 
   get aliveCount(): number {

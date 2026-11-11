@@ -66,3 +66,53 @@ test('分枝點亮更多格；死了不再響', () => {
   expect(c.aliveCount).toBe(0);
   expect(c.tick(0, 0, 1, full)).toEqual([]);
 });
+
+test('生長進度點亮：0 時兩格、1 時到容量；只增不減', () => {
+  const c = new TreeChoir(mulberry32(1));
+  const v = c.add(1, 1, g, 0);
+  const lit = () => {
+    let n = 0;
+    for (let s = 0; s < 16; s++) n += c.tick(s, 0, 1, full).length;
+    return n;
+  };
+  c.grow(1, 0);
+  expect(lit()).toBe(2);
+  c.grow(1, 0.5);
+  const half = lit();
+  expect(half).toBeGreaterThanOrEqual(2);
+  expect(half).toBeLessThanOrEqual(v.capacity);
+  c.grow(1, 1);
+  expect(lit()).toBe(v.capacity);
+  c.grow(1, 0.2);
+  expect(lit()).toBe(v.capacity);
+});
+
+test('枯的進度熄格：0.5 時剩一半、1 時死且只回一次 died', () => {
+  const c = new TreeChoir(mulberry32(1));
+  c.add(1, 1, g, 0);
+  c.grow(1, 1); // 點滿
+  const peak =
+    c.tick(0, 0, 1, full).length +
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].reduce(
+      (n, s) => n + c.tick(s, 0, 1, full).length,
+      0,
+    );
+  expect(c.witherTo(1, 0)).toBe('none');
+  expect(c.witherTo(1, 0.5)).toBe('dimmed');
+  let lit = 0;
+  for (let s = 0; s < 16; s++) lit += c.tick(s, 0, 1, full).length;
+  expect(lit).toBe(Math.round(peak / 2));
+  expect(c.witherTo(1, 1)).toBe('died');
+  expect(c.aliveCount).toBe(0);
+  expect(c.witherTo(1, 1)).toBe('none');
+});
+
+test('clear 之後沒有樹、聲部全部釋放', () => {
+  const c = new TreeChoir(mulberry32(1));
+  c.add(1, 1, g, 1);
+  c.add(2, 2, g, 2);
+  c.clear();
+  expect(c.aliveCount).toBe(0);
+  c.add(3, 3, g, 3);
+  expect(c.tick(0, 0, 1, full).map((h) => h.slot)).toEqual([0]);
+});

@@ -22,7 +22,9 @@ export class GrainPool {
   /** buffer 由呼叫端依 opts.reverse 挑好正的或反的那份；opts.at 可以排在拍子上 */
   play(buffer: Tone.ToneAudioBuffer, opts: GrainOpts): void {
     const v = this.voices.reduce((a, b) => (b.startedAt < a.startedAt ? b : a));
-    const now = Math.max(Tone.now(), opts.at ?? 0);
+    // 審查發現：Transport 回呼給的 time 一定 ≤ Tone.now()（now 含 lookAhead），用 max(Tone.now(), at)
+    // 會把排程時間蓋掉、顆粒晚 0–50 ms 隨機抖。要對拍就以 at 為準，只防止排到過去。
+    const now = opts.at !== undefined ? Math.max(Tone.immediate(), opts.at) : Tone.now();
     if (v.player.state === 'started') v.player.stop(now);
     v.player.buffer = buffer;
     v.player.detune = opts.shift * 100;

@@ -106,6 +106,9 @@ export class BotanicaEngine implements SoundEngine {
   /** 俳句：每株押花樹一個節奏物件；素材在出生時挑定（沒載好就等下一拍再挑） */
   private readonly choir: TreeChoir;
   private readonly treeSamples = new Map<number, Sample>();
+  /** 曾經進過合唱的株（含已經死的）：它們的枝斷不走舊的枝斷聲 */
+  private readonly everTree = new Set<number>();
+  private treesWereOn: boolean;
   private stopTick: (() => void) | null = null;
   private padTimes: number[] = [];
   /** 枝斷的聲音至少隔這麼久（ms）：一株全枯時幾十條枝擠在幾秒內斷，不能每條都響 */
@@ -123,6 +126,7 @@ export class BotanicaEngine implements SoundEngine {
     this.rng = mulberry32(deps.seed ?? Date.now());
     this.idle = new IdleScheduler(this.rng);
     this.choir = new TreeChoir(this.rng);
+    this.treesWereOn = params.trees.enabled;
     const loopInfo = (role: SampleRole) =>
       samplesByRole(role).flatMap((s) => (s.bpm ? [{ id: s.id, bpm: s.bpm }] : []));
     const choices = tempoChoices(loopInfo('kit'), loopInfo('perc'));
@@ -167,6 +171,7 @@ export class BotanicaEngine implements SoundEngine {
     this.voice = v;
     if (info && this.treesOn(voiceName)) {
       const tv = this.choir.add(info.id, seed, info.gesture, now);
+      this.everTree.add(info.id);
       const s = this.pick(tv.role);
       if (s) this.treeSamples.set(info.id, s);
     }
@@ -175,11 +180,12 @@ export class BotanicaEngine implements SoundEngine {
     this.chord = nextChordIndex(this.chord, r.chord);
     this.rate.setMax(Math.max(1, Math.round(r.grains.maxPerSec * v.grains.density)));
     if (r.colour === 'none' || now - this.lastBloomAt < BLOOM_GAP_MS) return;
-    if (this.bloomWith(r)) this.lastBloomAt = now;
+    // 弦樂墊讓位只對俳句（其他植物、俳句關著時照舊）
+    if (this.bloomWith(r, this.treesOn(voiceName))) this.lastBloomAt = now;
   }
 
-  /** 照配方的顏色綻放；回傳有沒有真的出聲 */
-  private bloomWith(r: Recipe): boolean {
+  /** 照配方的顏色綻放；回傳有沒有真的出聲。yield = 弦樂墊要不要讓位 */
+  private bloomWith(r: Recipe, yieldPad = false): boolean {
     const keyPc = keyPitchClass(this.params.key);
     const tones = this.currentTones();
     const sampleRole = SAMPLE_COLOURS[r.colour];
@@ -205,7 +211,7 @@ export class BotanicaEngine implements SoundEngine {
       // 弦樂墊讓位：12 秒內已經兩層就不再疊
       const now = this.deps.now();
       this.padTimes = this.padTimes.filter((t) => now - t < PAD_RECENT_MS);
-      if (this.padTimes.length >= PAD_RECENT_MAX) return false;
+      if (yieldPad && this.padTimes.length >= PAD_RECENT_MAX) return false;
       const ok = this.padChord(chordMidis(keyPc, tones, register), r, r.gain);
       if (ok) this.padTimes.push(now);
       return ok;
@@ -252,7 +258,7 @@ export class BotanicaEngine implements SoundEngine {
     this.heatState.add(now, e.kind === 'leaf' ? HEAT_BUMP.leaf : HEAT_BUMP.branch);
     // 俳句：枝不直接出聲，點亮這株的一格，等拍子
     if (plantId !== undefined && this.treesOn(voiceName) && this.choir.has(plantId)) {
-      if (e.kind === 'branch') this.choir.grow(plantId);
+      if (e.kind === 'branch') this.choir.grow(plantId, e.progress);
       return;
     }
     if (e.kind === 'leaf' && this.rng() < 0.5) return;
@@ -270,13 +276,8 @@ export class BotanicaEngine implements SoundEngine {
   onWither(e: WitherEvent, voiceName?: string, plantId?: number): void {
     const now = this.deps.now();
     const v = voiceName === undefined ? this.voice : voiceFor(voiceName);
-    if (e.kind === 'branch' && plantId !== undefined && this.treesOn(voiceName)) {
-      // 俳句：枝斷熄一格；全熄（死）才響一次尾音，之後安靜
-      if (this.choir.wither(plantId) !== 'died') return;
-      this.treeSamples.delete(plantId);
-      this.branchBreakSound(now);
-      return;
-    }
+    // 俳句的樹：枝斷本身不出聲、不熄格；熄格與尾音由 onPlantWither 的進度決定
+    if (e.kind === 'branch' && plantId !== undefined && this.everTree.has(plantId)) return;
     if (e.kind === 'leaf') {
       if (this.rng() < 0.5) return;
       if (!this.rate.allow(Math.floor(now))) return;
@@ -284,6 +285,21 @@ export class BotanicaEngine implements SoundEngine {
       return;
     }
     this.branchBreakSound(now);
+  }
+
+  /** 一株枯到幾成：俳句照比例熄格，到 1 全熄＝死，響一次尾音 */
+  onPlantWither(plantId: number, progress: number, voiceName?: string): void {
+    if (!this.treesOn(voiceName) || !this.choir.has(plantId)) return;
+    if (this.choir.witherTo(plantId, progress) !== 'died') return;
+    this.treeSamples.delete(plantId);
+    this.branchBreakSound(this.deps.now());
+  }
+
+  /** 復原、清空：這株從合唱消失，之後不再響也不占株數 */
+  onPlantRemove(plantId: number): void {
+    this.choir.remove(plantId);
+    this.treeSamples.delete(plantId);
+    this.everTree.delete(plantId);
   }
 
   /** 枝斷：反轉的 swell 或 glitch，至少隔 BRANCH_SOUND_GAP_MS */
@@ -421,6 +437,13 @@ export class BotanicaEngine implements SoundEngine {
       layer.setVolume(this.params[name].volume);
     }
     this.deps.grains.setLowpass(this.params.grains.lowpassHz);
+    // 玩到一半關掉俳句：合唱清空，再打開時舊樹不會用過期的格子繼續響
+    if (this.treesWereOn && !this.params.trees.enabled) {
+      this.choir.clear();
+      this.treeSamples.clear();
+      this.everTree.clear();
+    }
+    this.treesWereOn = this.params.trees.enabled;
   }
 
   setVolume(v: number): void {

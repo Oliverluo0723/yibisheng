@@ -13,7 +13,7 @@ export type Gesture = {
   durationMs: number;
   /** 平均速度 0..1 */
   energy: number;
-  /** 停頓次數：連續 ≥ 130 ms、speed < 0.05 算一次 */
+  /** 停頓次數：連續 ≥ 130 ms、速度低於這一筆平均速度的三成五（0.01..0.05）算一次 */
   pauses: number;
   /** 停頓分布 0..1：1 = 均勻（像呼吸），0 = 擠在一起（像掙扎）；停頓 ≤ 1 次時為 1 */
   evenness: number;
@@ -23,7 +23,10 @@ export type Gesture = {
 export const EMPTY_GESTURE: Gesture = { durationMs: 0, energy: 0.2, pauses: 0, evenness: 1 };
 
 const PAUSE_MIN_MS = 130;
-const PAUSE_SPEED = 0.05;
+/** 停頓的速度門檻跟著這一筆的平均速度走（三成五），但不低於 0.01、不高於 0.05 */
+const PAUSE_RATIO = 0.35;
+const PAUSE_SPEED_MIN = 0.01;
+const PAUSE_SPEED_MAX = 0.05;
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
@@ -33,6 +36,8 @@ export function analyzeGesture(samples: readonly GestureSample[]): Gesture {
   if (!first || !last) return EMPTY_GESTURE;
   const durationMs = last.t - first.t;
   const energy = samples.reduce((s, x) => s + clamp01(x.speed), 0) / samples.length;
+  // 審查發現：慢筆的平均速度（約 0.03）本來就低於固定門檻 0.05，整筆會被當成停頓；改成相對門檻
+  const pauseSpeed = Math.min(PAUSE_SPEED_MAX, Math.max(PAUSE_SPEED_MIN, energy * PAUSE_RATIO));
 
   // 停頓：連續慢的一段，頭尾時間差夠長才算；記中點
   const centers: number[] = [];
@@ -43,7 +48,7 @@ export function analyzeGesture(samples: readonly GestureSample[]): Gesture {
     start = null;
   };
   for (const s of samples) {
-    if (s.speed < PAUSE_SPEED) {
+    if (s.speed < pauseSpeed) {
       start ??= s;
       prev = s;
     } else {

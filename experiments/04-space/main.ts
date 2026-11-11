@@ -232,6 +232,8 @@ type Item = {
   wither?: PlantWither;
   /** 這株的識別（= 種子），聲音用它認出是哪一株 */
   id?: number;
+  /** 上次告訴聲音的枯進度（押花樹） */
+  witherSent?: number;
 };
 let items: Item[] = [];
 
@@ -548,17 +550,24 @@ window.addEventListener('drop', (ev) => {
 });
 
 // ---------- 動作 ----------
+/** 這株從畫面上拿掉了：俳句的合唱也要知道，不然會留下看不見卻一直響的樹 */
+function removedFromScene(it: Item) {
+  if (it.id !== undefined) botanica.onPlantRemove(it.id);
+}
 function undo() {
   finishDrawing();
   const last = items.pop();
-  last?.view.dispose();
-  last?.grower?.dispose();
+  if (!last) return;
+  last.view.dispose();
+  last.grower?.dispose();
+  removedFromScene(last);
 }
 function clear() {
   finishDrawing();
   for (const it of items) {
     it.view.dispose();
     it.grower?.dispose();
+    removedFromScene(it);
   }
   items = [];
 }
@@ -735,13 +744,30 @@ renderer.setAnimationLoop((now: number) => {
     x: Math.min(1, Math.max(0, (at.x + 1.5) / 3)),
     y: Math.min(1, Math.max(0, 0.5 - at.y / 3)),
   });
-  const sound = (events: Growth3DEvent[], voice: string | undefined, id: number | undefined) => {
+  // life = 這株的生命（ms），有的話給聲音「長到幾成」
+  const sound = (
+    events: Growth3DEvent[],
+    voice: string | undefined,
+    id: number | undefined,
+    life?: number,
+  ) => {
     for (const e of events)
       heat.add(now, e.kind === 'leaf' ? ARC_HEAT_BUMP.leaf : ARC_HEAT_BUMP.branch);
     if (events.length > 0) witherClock.activity(now);
-    if (!state.sound.enabled) return;
+    // Botanica 關聲音時是整個靜音，事件照送（俳句的格子才會跟著長）；原本的引擎沒有靜音，要擋
+    if (!state.sound.enabled && state.sound.engine !== 'botanica') return;
     for (const e of events) {
-      engine().onGrowth({ kind: e.kind, ...screen01(e.at), depth: e.depth, age: e.age }, voice, id);
+      engine().onGrowth(
+        {
+          kind: e.kind,
+          ...screen01(e.at),
+          depth: e.depth,
+          age: e.age,
+          ...(life ? { progress: Math.min(1, e.age / life) } : {}),
+        },
+        voice,
+        id,
+      );
     }
   };
   // 鼓、鋼琴、俳句都吃畫面這份熱度（筆重枝葉輕）
@@ -751,12 +777,21 @@ renderer.setAnimationLoop((now: number) => {
   const dry = witherClock.tick(now, heat.value(now));
   for (const it of items) {
     const p = it.view.plant;
-    if (p?.alive) sound(p.step(dt), it.voice, it.id);
+    if (p?.alive) sound(p.step(dt), it.voice, it.id, p.params.life);
     // 枯：跟著乾燥時鐘（只增不減）；「枯跟熱度」關掉時只看手動滑桿（除錯，可來回拉）
     if (it.wither) {
       it.view.wither = state.wither.auto
         ? it.wither.update(dry, state.wither.fullSec, state.wither.manual)
         : state.wither.manual;
+    }
+    // 枯的進度交給俳句（照比例熄格、到 1 響尾音）；每變 2% 說一次，到 1 一定說
+    if (it.id !== undefined && it.wither) {
+      const w = it.view.wither;
+      const sent = it.witherSent ?? 0;
+      if ((w > 0 && w - sent >= 0.02) || (w >= 1 && sent < 1)) {
+        it.witherSent = w;
+        botanica.onPlantWither(it.id, w, it.voice);
+      }
     }
     it.view.fall = state.fall;
     const fell = it.view.sync(now);

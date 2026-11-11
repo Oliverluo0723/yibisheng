@@ -47,3 +47,13 @@ test('兩次停頓擠在中段 → 均勻度低', () => {
   expect(g.pauses).toBe(2);
   expect(g.evenness).toBeLessThan(0.5);
 });
+
+test('停頓門檻跟著這一筆的速度：很慢但穩的一筆不算停頓', () => {
+  const g = analyzeGesture(run(1500, 0.03));
+  expect(g.pauses).toBe(0);
+});
+
+test('很慢的一筆裡真的停下來（速度掉到接近 0）才算停頓', () => {
+  const g = analyzeGesture([...run(600, 0.03), ...run(200, 0.002, 600), ...run(600, 0.03, 800)]);
+  expect(g.pauses).toBe(1);
+});
