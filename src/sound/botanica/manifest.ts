@@ -38,7 +38,8 @@ export type Sample = {
   url?: string;
 };
 
-export const SOUND_BASE = '/sounds/';
+/** 跟著 vite 的 base 走（GitHub Pages 在 /yibisheng/ 底下）；node 腳本直接 import 時沒有 import.meta.env */
+export const SOUND_BASE = `${import.meta.env?.BASE_URL ?? '/'}sounds/`;
 
 const V1 = 'bespoke - Floral v.1';
 const V2 = 'bespoke - Floral v.2';
