@@ -4,7 +4,7 @@
 
 **Floral 的授權：使用者 2026-11-12 確認可以公開散布，音檔進 git、隨 GitHub Pages 部署。**
 
-Floral 與 Salamander 的 mp3 在 git 裡；FL Studio 弦樂（`ostr-*`）不在，要產生：
+全部 mp3 都在 git 裡。重新產生：
 
 ```sh
 node scripts/convert-sounds.ts            # 預設讀 ~/Downloads/Floral
@@ -188,7 +188,7 @@ node scripts/convert-sounds.ts /別的/路徑  # 或指定來源
 ## FL Studio「Strings Section」（弦樂拉長的和弦）
 
 FL Studio Mobile 內建的 DirectWave 音色，11 個弦樂單音（C、F 各一個八度，3 秒），作品裡用顆粒循環中段當持續音。
-**授權：FL Studio 的內建素材允許用在自己的作品裡；放上公開網頁時原檔可被下載，是否算「散布素材」待使用者確認。確認前只留本機。**
+**授權：使用者 2026-11-12 確認可以公開（非商用），已進 git、隨 GitHub Pages 部署。**
 
 | 檔案 | 音高 | 原檔（家目錄下） |
 |---|---|---|
