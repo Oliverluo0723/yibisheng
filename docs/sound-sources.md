@@ -10,7 +10,7 @@
 
 | 來源 | 狀況 |
 |---|---|
-| Floral（bespoke，Splice 類型的 pack） | **不可**原樣放 public。這類條款禁止「sublicense the Sounds in isolation」；經過重度處理、混進作品裡才算合法用法，但 public 資料夾裡的單獨 mp3 很難主張是「作品」。目前做法（不進 git、不公開）是對的，公開前要換或問作者 |
+| Floral（bespoke，Splice 類型的 pack） | **2026-11-12 使用者確認可以公開散布，已進 git、隨 GitHub Pages 部署。** 原本的判斷：**不可**原樣放 public。這類條款禁止「sublicense the Sounds in isolation」；經過重度處理、混進作品裡才算合法用法，但 public 資料夾裡的單獨 mp3 很難主張是「作品」。目前做法（不進 git、不公開）是對的，公開前要換或問作者 |
 | Salamander Grand Piano | **可**（CC-BY 3.0），公開時放署名頁 |
 | FL Studio Strings Section（ostr） | **不可／偏不可**。Image-Line 只允許用在你的音樂作品裡。用下面的 VSCO 2 CE 或 Iowa 弦樂換掉 |
 

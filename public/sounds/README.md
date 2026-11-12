@@ -2,9 +2,9 @@
 
 來源：**bespoke「Floral v.1 / Floral v.2 — Botanica Sample Pack」**（Gumroad：https://bespokesamples.gumroad.com/l/ddxue），使用者自己的取樣包，原檔在 `~/Downloads/Floral/`。
 
-**Floral 的授權：待使用者確認。確認前這些音檔只留在本機，不進 git、不公開。**
+**Floral 的授權：使用者 2026-11-12 確認可以公開散布，音檔進 git、隨 GitHub Pages 部署。**
 
-音檔（mp3）不在 git 裡。要產生：
+Floral 與 Salamander 的 mp3 在 git 裡；FL Studio 弦樂（`ostr-*`）不在，要產生：
 
 ```sh
 node scripts/convert-sounds.ts            # 預設讀 ~/Downloads/Floral
